@@ -442,18 +442,20 @@ function getCurrentWeek() {
     // Implement logic to get the current week number
     return new Date().getWeek();
 }
+global.getCurrentWeek = getCurrentWeek;
 
 function isCurrentWeek(dateString, currentWeek) {
     const date = new Date(dateString);
     return date.getWeek() === currentWeek;
 }
+global.isCurrentWeek = isCurrentWeek;
 
 Date.prototype.getWeek = function() {
     const firstDayOfYear = new Date(this.getFullYear(), 0, 1);
     const pastDaysOfYear = (this - firstDayOfYear) / 86400000;
     return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
 };
-
+global.getWeek = Date.prototype.getWeek;
  
 
 // Function to read or initialize data

@@ -3,15 +3,52 @@
 
 // Adding tracking number
 document.addEventListener("DOMContentLoaded", function() {
-    document.getElementById("trackingForm").addEventListener("submit", function(e) {
+    document.getElementById("date").valueAsDate = new Date();
+    document.getElementById("quantity").value = 1;
+    const trackingForm = document.getElementById("trackingForm");
+    const beep = new Audio('beep-1-sec-6162.mp3'); // Path to beep sound file
+
+    trackingForm.addEventListener("submit", async function(e) {
         e.preventDefault();
+
+        const trackingNumberInput = document.getElementById("trackingNumber");
+        const trackingNumber = trackingNumberInput.value.trim();
+
+        // Check if tracking number was already added
+        try {
+            const alreadyAdded = await wasTrackingNumberAdded(trackingNumber);
+            console.log('Tracking Number Check:', trackingNumber, 'Already Added:', alreadyAdded);
+            if (alreadyAdded) {
+                beep.play(); // Play beep sound
+                document.getElementById('log').textContent = 'Error: Tracking number already added';
+                trackingNumberInput.style.backgroundColor = 'red'; // Highlight in red as an error
+                return; // Prevent further execution
+            }
+        } catch (error) {
+            console.error('Error in checking tracking number:', error);
+            // You may decide to handle this differently
+            return; // Optionally stop the execution on error
+        }
+
+        // Highlight or clear the tracking number
+        trackingNumberInput.style.backgroundColor = trackingNumber === '' ? '' : 'yellow';
+        trackingNumberInput.select();
+
+        // Reset quantity to 1 after form submission
+        document.getElementById("quantity").value = 1;
+
         const formData = new FormData(this);
 
         fetch('/add-tracking', {
             method: 'POST',
             body: formData
         })
-        .then(response => response.text())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.text();
+        })
         .then(data => {
             document.getElementById('log').textContent = 'Tracking data added successfully';
             fetchAndDisplayTrackingData();
@@ -19,7 +56,7 @@ document.addEventListener("DOMContentLoaded", function() {
         })
         .catch(error => {
             console.error('Error:', error);
-            document.getElementById('log').textContent = 'Error adding tracking data';
+            document.getElementById('log').textContent = `Error adding tracking data: ${error.message}`;
         });
     });
 
@@ -27,6 +64,26 @@ document.addEventListener("DOMContentLoaded", function() {
     fetchAndDisplayTrackingData();
     fetchPastWeekTrackingData();
 });
+
+async function wasTrackingNumberAdded(trackingNumber) {
+    try {
+        const response = await fetch(`/get-device-details/${encodeURIComponent(trackingNumber)}`);
+        if (response.ok) {
+            const data = await response.json();
+            // Check if the response array is empty or not
+            return Array.isArray(data) && data.length > 0;
+        } else if (response.status === 404) {
+            return false; // Tracking number does not exist
+        } else {
+            throw new Error('Unexpected response from server');
+        }
+    } catch (error) {
+        console.error('Error in fetching from server:', error);
+        throw error; // Re-throw to handle in the caller
+    }
+}
+
+ 
 
 // Fetch and display tracking data
         function fetchAndDisplayTrackingData() {

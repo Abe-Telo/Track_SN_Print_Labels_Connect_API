@@ -228,7 +228,7 @@ function submitEditForm(serialNumber, trackingNumber) {
         hd: document.getElementById('editHD').value,
         windowsVersion: document.getElementById('editWindowsVersion').value,
       //  sku: document.getElementById('editSKU').value,
-        notes: document.getElementById('editNotes').value
+        notes: document.getElementById('editNotes').value,
         activationStatus: document.getElementById('editActivationStatus').value,
         status: document.getElementById('editStatus').value,
         OrderNumber: document.getElementById('editOrderNumber').value,
