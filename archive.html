@@ -1,0 +1,185 @@
+<!-- archive.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Archived Tracking Data</title>
+    <!-- Add styles and other head elements here -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        form, table, button {
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+
+
+<link rel="stylesheet" href="css/model.ShowDeviceDetail.css">
+ <!--
+<style>
+    /* Modal styles */
+    .modal {
+        display: none;
+        position: fixed;
+        z-index: 1;
+        padding-top: 100px;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgb(0,0,0);
+        background-color: rgba(0,0,0,0.4);
+    }
+
+    .modal-content {
+        background-color: #fefefe;
+        margin: auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%;
+    }
+
+    .close {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+    }
+
+    .close:hover,
+    .close:focus {
+        color: black;
+        text-decoration: none;
+        cursor: pointer;
+    }
+</style>-->
+
+</head>
+
+
+ <body>
+    <h1>Archived Tracking Data</h1>
+    <table id="archiveTable">
+        <tr>
+            <th>Date</th>
+            <th>Tracking Number</th>
+            <th>Quantity</th>
+            <th>Remaining</th>
+        </tr>
+        <!-- Data rows will be populated using JavaScript -->
+    </table>
+
+    <div id="deviceDetailsModal" class="modal">
+        <div class="modal-content">
+            <span id="closeModal" class="close">&times;</span>
+            <h2>Device Details</h2>
+            <table id="modalTable" style="width: 100%; border-collapse: collapse;"></table>
+        </div>
+    </div>
+
+    <script>
+	/*
+        document.addEventListener("DOMContentLoaded", function() {
+            fetchArchiveTrackingData();
+        });
+
+        function fetchArchiveTrackingData() {
+            fetch('/archived-tracking-data')
+            .then(response => response.json())
+            .then(data => {
+                const table = document.getElementById('archiveTable');
+                table.innerHTML = '<tr><th>Date</th><th>Tracking Number</th><th>Quantity</th><th>Remaining</th></tr>';
+
+                data.forEach(item => {
+                    const row = table.insertRow();
+
+                    row.insertCell().innerText = item.date;
+
+                    const trackingNumberCell = row.insertCell();
+                    const trackingNumberLink = document.createElement('a');
+                    trackingNumberLink.href = '#';
+                    trackingNumberLink.textContent = item.trackingNumber;
+                    trackingNumberLink.onclick = function() { showDeviceDetails(item.trackingNumber, true); };
+                    trackingNumberCell.appendChild(trackingNumberLink);
+
+                    row.insertCell().innerText = item.quantity;
+                    row.insertCell().innerText = item.remaining;
+                });
+            })
+            .catch(error => console.error('Failed to fetch archived tracking data:', error));
+        }
+
+        function showDeviceDetails(trackingNumber, isArchived) {
+            const endpoint = `/get-archived-device-details/${trackingNumber}`;
+            fetch(endpoint)
+            .then(response => response.json())
+            .then(devices => {
+                const modalTable = document.getElementById('modalTable');
+                modalTable.innerHTML = `<tr>
+                                            <th>Serial Number</th>
+                                            <th>Model</th>
+                                            <th>CPU</th>
+                                            <th>RAM</th>
+                                            <th>HD</th>
+                                            <th>Windows Version</th>
+                                        </tr>`;
+
+                devices.forEach(device => {
+                    const row = modalTable.insertRow();
+                    row.innerHTML = `<td>${device.serialNumber}</td>
+                                     <td>${device.model}</td>
+                                     <td>${device.cpu}</td>
+                                     <td>${device.ram}</td>
+                                     <td>${device.hd}</td>
+                                     <td>${device.windowsVersion}</td>`;
+                });
+                showModal();
+            });
+        }
+
+        function showModal() {
+            document.getElementById('deviceDetailsModal').style.display = 'block';
+        }
+		*/
+        function closeModal() {
+            document.getElementById('deviceDetailsModal').style.display = 'none';
+        }
+
+        document.getElementById('closeModal').addEventListener('click', closeModal);
+
+    </script>
+</body>
+</html>
+

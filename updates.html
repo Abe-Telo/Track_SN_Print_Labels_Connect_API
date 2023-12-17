@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Software Update Log</title>
+    <style>
+	
+
+
+        /* Improved styles for better layout and readability */
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+        }
+        .update-section, .comment-section {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .update-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        .update-version {
+            color: #888;
+            margin-bottom: 10px;
+        }
+        .update-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .submit-button, .update-fix-button {
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            color: white;
+        }
+        .submit-button {
+            background-color: #4CAF50;
+        }
+        .submit-button:hover {
+            background-color: #45a049;
+        }
+        .update-fix-button {
+            background-color: #008CBA;
+        }
+        .update-fix-button:hover {
+            background-color: #007ba7;
+        }
+		
+		
+    .update-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .update-body {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .update-input {
+        margin-bottom: 10px;
+    }
+
+    .comment-section {
+        margin-top: 20px;
+    }
+
+    .comment {
+        margin-top: 10px;
+    }
+	 
+    </style>
+</head>
+<body>
+
+    <!-- Update Section -->
+    <div class="update-section">
+        <div class="update-header">
+            <div>
+                <div class="update-title">Update Title</div>
+                <div class="update-version">Version: 1.0.1</div>
+            </div>
+            <form class="update-body">
+                <textarea class="update-input" name="update" placeholder="Details about what was fixed or updated in this version." required></textarea>
+                <button class="update-fix-button" type="button" onclick="handleAddUpdate()">Add Update</button>
+            </form>
+        </div>
+		    <!-- Update Display Section -->
+    <div class="update-display-section">
+        <h2>Updates</h2>
+        <div id="update-display"><!-- Updates will be displayed here --></div>
+    </div>
+    </div>
+
+
+
+    <!-- Comment Section -->
+    <div class="comment-section">
+        <h2>Comments</h2>
+        <form id="comment-form">
+            <textarea class="comment-input" name="comment" placeholder="Write your comment here..." required></textarea>
+            <button type="submit" class="submit-button">Submit Comment</button>
+        </form>
+        <div id="comment-display"><!-- Comments will be displayed here --></div>
+    </div>
+ 
+
+ 
+
+    <script>
+
+
+        function displayUpdates() {
+            fetch('/get_updates') // Ensure this endpoint exists in your server
+            .then(response => response.json())
+            .then(updates => {
+                var updateDisplay = document.getElementById('update-display');
+                updateDisplay.innerHTML = ''; // Clear existing updates
+                updates.forEach(update => {
+                    updateDisplay.innerHTML += '<div class="update">' + update + '</div>';
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+ 
+        // Function to handle comment submission
+        document.getElementById('comment-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            var comment = document.querySelector('.comment-input').value;
+            var data = { comment: comment };
+
+            // Send comment data to your Node.js server
+            fetch('/submit_comment', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+                displayComments(); // Refresh comments
+                document.querySelector('.comment-input').value = ''; // Clear the form
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        });
+ 
+	document.addEventListener('DOMContentLoaded', () => {
+    // Function to handle adding updates
+        // Function to handle adding updates
+        function handleAddUpdate() {
+            var updateDetails = document.querySelector('.update-input').value;
+            fetch('/add_update', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ update: updateDetails })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Update added:', data);
+                document.querySelector('.update-input').value = ''; // Clear the form
+                displayUpdates(); // Refresh updates
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+
+    // Attach event listener to the update button
+    const updateButton = document.querySelector('.update-fix-button');
+    if (updateButton) {
+        updateButton.addEventListener('click', handleAddUpdate);
+    }
+}); 
+        // Function to display comments
+        function displayComments() {
+            fetch('/get_comments')
+            .then(response => response.json())
+            .then(comments => {
+                var commentDisplay = document.getElementById('comment-display');
+                commentDisplay.innerHTML = ''; // Clear existing comments
+                comments.forEach(comment => {
+                    commentDisplay.innerHTML += '<div class="comment">' + comment + '</div>';
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        // Load comments when the page loads
+        window.onload = displayComments;
+		window.onload = displayUpdates;
+    </script>
+
+</body>
+</html>

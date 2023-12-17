@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <title>Tracking Data Entry</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        form, table, button {
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+	
+	<style>
+	/* Style for the Modal Background */
+.OrderDetailsModal-modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    overflow: auto; /* Enable scroll if needed */
+    background-color: rgb(0,0,0); /* Fallback color */
+    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    padding-top: 60px;
+}
+
+/* Modal Content Box */
+.OrderDetailsModal-modal-content {
+    background-color: #fefefe;
+    margin: 5% auto; /* 5% from the top and centered */
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%; /* Could be more or less, depending on screen size */
+}
+
+/* The Close Button */
+.OrderDetailsModal-close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.OrderDetailsModal-close:hover,
+.OrderDetailsModal-close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.modal {
+    display: none;
+    /* Other styling */
+}
+
+
+	</style>
+	
+	
+	<!-- In the <head> section of your HTML files -->
+<link rel="stylesheet" href="css/model.ShowDeviceDetail.css">
+
+
+
+</head>
+<body>
+<script>
+/*
+    function toggleSection(sectionId) {
+        // Hide all sections
+		hideAllSections();
+        document.querySelectorAll('.hidden').forEach(section => {
+            section.style.display = 'none';
+        });
+        // Show the requested section
+        document.getElementById(sectionId).style.display = 'block';
+    }
+	
+	*/
+
+
+    // Runs when the DOM content is loaded
+    document.addEventListener("DOMContentLoaded", function() {
+        // Load the last opened section if it exists
+        const lastOpenedSection = localStorage.getItem('lastOpenedSection');
+        if (lastOpenedSection) {
+            toggleSection(lastOpenedSection);
+        }
+		
+		        // Load the last content if it exists
+        const lastContent = localStorage.getItem('lastContent');
+        if (lastContent) {
+            const lastContentObj = JSON.parse(lastContent);
+            loadContent(lastContentObj);
+        }
+		
+    });
+
+	
+// LOAD LOCAL TOGLE DIV AND RUN SCRIPT IN JS FLDER
+	    function toggleAndLoadScript(sectionId, scriptName) {
+        // Hide all sections and clear dynamic content
+        hideAllSections();
+        clearDynamicContent();
+
+        // Show the requested section
+        const section = document.getElementById(sectionId);
+        if (section) {
+            section.style.display = 'block';
+        }
+
+        // Load JavaScript file
+        if (scriptName) {
+            loadScript(scriptName);
+        }
+    }
+
+    function loadScript(scriptName) {
+        const path = '/js/' + scriptName;
+        const script = document.createElement('script');
+        script.src = path;
+        script.onload = () => console.log(`Loaded script: ${scriptName}`);
+        script.onerror = () => console.error(`Failed to load script: ${scriptName}`);
+        document.head.appendChild(script);
+    }
+	// ------------------------------------------------------------------------------------
+	
+ 
+	
+	// TOGGLE BUTTON AND CLEAR 
+    function toggleSection(sectionId) {
+        // Hide all sections and clear dynamic content
+        hideAllSections();
+        clearDynamicContent();
+
+        // Show the requested section
+        const section = document.getElementById(sectionId);
+        if (section) {
+            section.style.display = 'block';
+            // Save the opened section ID to localStorage
+            localStorage.setItem('lastOpenedSection', sectionId);
+            localStorage.setItem('lastContent', sectionId); 
+        }
+    }
+// ------------------------------------------------------------------------------------
+		
+		// Clear toggles used in toggleSection and toggleAndLoadScript
+	    function clearDynamicContent() {
+        // Assuming 'contentContainer' is the ID of the container for dynamic content
+        const dynamicContainer = document.getElementById('contentContainer');
+        if (dynamicContainer) {
+            dynamicContainer.innerHTML = '';
+        }
+    }
+	
+ function hideAllSections() {
+    document.querySelectorAll('.hidden').forEach(section => {
+        section.style.display = 'none';
+    });
+}
+
+// ------------------------------------------------------------------------------------
+
+
+//  Loads HTML or JAVA or both. 
+    function loadContent({scriptName = null, htmlPath = null, containerId = null}) {
+        // Hide all sections before loading new content
+        hideAllSections();
+
+        if (htmlPath) {
+            // Load HTML content
+            fetch(htmlPath)
+                .then(response => response.text())
+                .then(html => {
+                    const container = document.getElementById(containerId);
+                    if (container) {
+                        container.innerHTML = html;
+                        container.style.display = 'block';
+                    }
+                })
+                .catch(error => console.error(`Failed to load HTML content: ${error}`));
+        }
+
+        if (scriptName) {
+            // Load JavaScript file
+            const path = '/js/' + scriptName;
+            const script = document.createElement('script');
+            script.src = path;
+            script.onload = () => console.log(`Loaded script: ${scriptName}`);
+            script.onerror = () => console.error(`Failed to load script: ${scriptName}`);
+            document.head.appendChild(script);
+        }
+		        // Save the parameters to localStorage
+        const contentParams = JSON.stringify({scriptName, htmlPath, containerId});
+        localStorage.setItem('lastContent', contentParams);
+        localStorage.setItem('lastOpenedSection', contentParams);
+    }
+
+
+        // Example usage:
+        // loadScript('myScript.js'); // Load a script named 'myScript.js' from the js/ directory
+ 
+</script>
+
+<!--
+<iframe id="labelPreviewFrame" src="print/label.pdf" style="width: 100%; height: 500px;"></iframe>
+ --> 
+
+<script type="module">
+    import * as pdfjsLib from '/node_modules/pdfjs-dist/build/pdf.mjs';
+    window.pdfjsLib = pdfjsLib;
+</script>
+
+  
+
+    <div class="container">
+
+        <button onclick="toggleSection('AddTrackingForm')">Add Tracking</button>
+        <button onclick="toggleSection('searchSection')">Search</button>  
+		<button onclick="loadContent({scriptName: 'new_entries.js', htmlPath: '/archive.html', containerId: 'contentContainer'})">In Stock</button>
+        <button onclick="toggleSection('WatingSale')">Solid</button>  
+        <button onclick="toggleSection('WatingSale')">Return</button>  
+        <button onclick="toggleSection('WatingSale')">Not Approved</button>  
+		<!--<button onclick="toggleSection('WatingSale')">How it works</button>  
+		<button onclick="toggleSection('WatingSale')">Sotware Updates</button>-->
+		<button onclick="loadContent({htmlPath: '/how_it_works.html', containerId: 'contentContainer'})">How it works</button>
+		<button onclick="loadContent({htmlPath: '/updates.html', containerId: 'contentContainer'})">Sotware Updates</button>
+		
+
+    </div>
+	
+	<!--<script src="js/new_entries.js"></script>-->
+	
+    <!-- Content Containers -->
+	
+	    <div id="contentContainer" style="display: none;" ></div><!-- Show all HTML JAVA FILE HERE IN THIS CONTANER -->
+        
+
+
+
+	<!-- Other content HTML FILE-->
+	<!--<div id="archiveContent" class="hidden"></div>--> 
+    <!--<div id="archiveContent" style="display: none;" class="hidden"></div>-->
+
+
+
+
+
+
+
+<!--<script>loadScript('new_entries.js');</script>-->
+
+
+<!-- Adding Tracking number -->
+<script src="js/add.tracking.info.js"></script>
+	    <!-- Add Tracking Section -->
+    <div id="AddTrackingForm" class="hidden">
+        <h1>Enter Tracking Data</h1>
+        <form id="trackingForm">
+        <label for="date">Date:</label>
+        <input type="date" id="date" name="date" required>
+        <label for="trackingNumber">Tracking Number:</label>
+        <input type="text" id="trackingNumber" name="trackingNumber" required>
+        <label for="quantity">Quantity:</label>
+        <input type="number" id="quantity" name="quantity" required>
+        <input type="submit" value="Submit">
+        </form>
+        <!--<button onclick="showSection('trackingTableSection')">View Recent Entries</button>-->
+ 
+ 
+        <h2>Status Repairing - Waiting for Label</h2>
+    <table id="trackingTable">
+            <!-- Table rows will be populated using JavaScript -->
+        </table>
+		   <button id="deleteButton">Delete Selected</button>
+           <button id="saveButton">Save Changes</button>
+	       <div id="log"></div> <!--  Logs appear here... -->
+ 
+ 
+ <!-- Place this where you want the past week's data to appear -->
+    <h2>Past Week's Entries</h2>
+        <table id="pastWeekTable">
+            <!-- Table headers -->
+            <tr>
+                <th>Date</th>
+                <th>Tracking Number</th>
+                <th>Quantity</th>
+                <th>Remaining</th>
+            </tr>
+            <!-- Data rows will be populated using JavaScript -->
+        </table>
+	 </div>
+ 
+<script src="js/search.all.js"></script>
+	<div id="searchSection" class="hidden">
+        <input type="text" id="searchInput" placeholder="Search...">
+        <button id="searchButton" onclick="performSearch()">Search</button>
+        <div id="searchResults">
+            <table id="resultsTable">
+                <!-- Search results will be populated here -->
+            </table> 
+        </div>
+    </div> 
+
+<script src="js/showDeviceDetails.js"></script>
+<div id="deviceDetailsModal" class="modal">
+    <div class="modal-content">
+        <span id="closeModal" class="close">&times;</span>
+        <h2>Device Details</h2>
+        <table id="modalTable" style="width: 100%; border-collapse: collapse;">
+            <!-- Table headers and rows will be added dynamically -->
+        </table>
+    </div>
+</div>
+<div id="modalOverlay" class="modal-overlay"></div>
+
+
+
+
+<!-- Label Preview Modal -->
+<div id="labelPreviewModal" class="modal">
+    <div class="modal-content">
+        <!--<iframe id="labelPreviewFrame" style="width:100%; height:400px;"></iframe>-->
+		<canvas id="pdfCanvas" style="width: 100%; height: 400px;"></canvas>
+        <button onclick="downloadLabelFromModal()">Download</button>
+        <button onclick="printLabelFromModal()">Print</button>
+        <button onclick="closeLabelPreviewModal()">Close</button>
+    </div>
+</div>
+
+<div id="orderDetailsModal" class="OrderDetailsModal-modal">
+    <div class="OrderDetailsModal-modal-content">
+        <span class="OrderDetailsModal-close" onclick="closeOrderDetailsModal()">&times;</span>
+        <div id="ModalOrderDetails"></div>
+    </div>
+</div>
+
+<!-- Edit Device Modal -->
+<div id="editDeviceModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeEditModal()">&times;</span>
+        <h2>Edit Device Details</h2>
+        <form id="editDeviceForm">
+            <!-- Hidden field for serial number -->
+            <input type="hidden" id="editSerialNumber" name="serialNumber">
+
+            <!-- Editable fields -->
+            <input type="text" id="editModel" name="model" placeholder="Model">
+            <input type="text" id="editCPU" name="cpu" placeholder="CPU">
+            <input type="text" id="editRAM" name="ram" placeholder="RAM">
+            <input type="text" id="editHD" name="hd" placeholder="HD">
+            <input type="text" id="editWindowsVersion" name="windowsVersion" placeholder="Windows Version">
+            <input type="text" id="editStatus" name="status" placeholder="Status">
+            <textarea id="editNotes" name="notes" placeholder="Notes"></textarea>
+            <input type="text" id="editOrderNumber" name="orderNumber" placeholder="Order Number">
+            <input type="text" id="editAPI" name="api" placeholder="API">
+            <input type="text" id="editAccount" name="account" placeholder="Account">
+            <input type="checkbox" id="editInAccount" name="inAccount"> In Account<br>
+            <input type="text" id="editReturnReason" name="returnReason" placeholder="Return Reason">
+            <input type="text" id="editNotApprovedReason" name="notApprovedReason" placeholder="Not Approved Reason">
+
+            <!-- Submit button -->
+            <!--<button type="button" onclick="submitEditForm()">Save Changes</button>-->
+			<!--<button onclick="submitEditForm()">Save Changes</button>-->
+
+        </form>
+    </div>
+</div>
+
+
+
+
+</body>
+</html>
+
+
+
+
+
+
+
+<!--<div id="deviceDetailsModal" style="display:none;">-->
+<!-- Device Details Modal --> 
+<!--<div id="deviceDetailsModal" style="display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background-color: white; padding: 20px; border: 1px solid #ccc; z-index: 1000; width: 80%; max-width: 800px; max-height: 80%; overflow-y: auto;">
+    <span id="closeModal" style="cursor: pointer; float: right;">&times;</span>
+    <h2>Device Details</h2>
+    <table id="modalTable" style="width: 100%; border-collapse: collapse;">
+        <!-- Table headers and rows will be added dynamically -->
+ <!--   </table>
+</div>
+
+<!-- Overlay for modal -->
+<!--<div id="modalOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 999;"></div>
+
+</div>-->
+
+
+
+
+
+
+
+
+        <!--<button onclick="toggleAndLoadScript('ViewAllEntries', 'new_entries.js')">View All Entries</button>
+        <button onclick="loadContent({scriptName: 'new_entries.js'})">Load JS Only</button>
+        <!--<button onclick="loadContent({htmlPath: '/archive.html', containerId: 'contentContainer'})">Load HTML Only</button>
+        <button onclick="loadContent({scriptName: 'new_entries.js', htmlPath: '/archive.html', containerId: 'contentContainer'})">Load Both</button>-->
+
+		<!--<button onclick="toggleAndLoadScript({scriptName: 'search.all.js'})">Search JS Only</button>
+		<button onclick="toggleAndLoadScript('searchSection', 'search.all.js')">Search toggleAndLoadScript</button>-->
+				
+		<!--<button onclick="loadArchiveContent()">View Recent Entries</button>
+		    <button onclick="toggleSection('ProcceingTrackingTable')">View Recent Entries</button>
+		<button onclick="loadScript('new_entries.js')">View Recent Entries</button>-->
+			<!--<button onclick="href="archive" target="">View All Archived Records</button>-->
+		<!--<a href="archive" target="">View All Archived Records</a>-->
+		        <!--<button onclick="toggleSection('WatingSale')">Wating Sale</button> <!-- Archive -->
+		
+		
+		
+		
+		
+		
+<!--   Load View All Entries                                                               -->
+<!-- Issue that add tracking not working when this is on. Suspecting conflict
+<div id="ViewAllEntries" class="hidden">
+    <h1>Archived Tracking Data</h1>
+    <table id="archiveTable">
+        <tr>
+            <th>Date</th>
+            <th>Tracking Number</th>
+            <th>Quantity</th>
+            <th>Remaining</th>
+        </tr>
+        <!-- Data rows will be populated using JavaScript -->
+    <!-- </table>
+<!-- ISSUE WHEN  it loads style 
+    <div id="deviceDetailsModal" class="modal hidden">
+        <div class="modal-content">
+            <span id="closeModal" class="close">&times;</span>
+            <h2>Device Details</h2>
+            <table id="modalTable" style="width: 100%; border-collapse: collapse;"></table>
+        </div>
+    </div>
+</div>
+-->
+<!--                                                                                                  -->
