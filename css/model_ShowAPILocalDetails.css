@@ -1,0 +1,105 @@
+/* model_ShowAPILocalDetails.css */
+.modal_API_Local {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+.modal_API_Local-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 50%;
+}
+
+.close_API_Local {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close_API_Local:hover,
+.close_API_Local:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.tab_API_Local {
+    overflow: hidden;
+    border: 1px solid #ccc;
+    background-color: #f1f1f1;
+}
+
+.tab_API_Local button {
+    background-color: LightGray;
+    float: left;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 14px 16px;
+    transition: 0.3s;
+    font-size: 17px;
+}
+
+.tab_API_Local button:hover {
+    background-color: #ddd;
+}
+
+.tab_API_Local button.active {
+    background-color: DarkGray;
+}
+
+.tabcontent_API_Local {
+    display: none;
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    border-top: none;
+}
+
+.button-container_API_Local {
+    float: right;
+}
+
+
+
+    #updateShippingStatusContainer {
+        margin-top: 20px;
+    }
+
+    #updateShippingStatusButton {
+        background-color: #4CAF50; /* Green */
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+    }
+
+	    #loadingProgress {
+        display: none;
+        color: blue;
+    }
+
+    .loadingButton {
+        background-color: lightblue;
+        color: white;
+    }
+
+    .hidden {
+        display: none;
+    }
+
+

@@ -197,46 +197,39 @@ app.post('/update-remainingWEB', (req, res) => {
         If the tracking number is not found, returns a 404 error with an appropriate message.
 */
 function updateRemainingWEB0ToArchive(app) {
-    app.post('/update-remainingWEB', (req, res) => {
-        // Extracts the tracking number and new quantity from the request body.
-        const { trackingNumber, newQuantity } = req.body;
+app.post('/update-remainingWEB', (req, res) => {
+    // Extracts the tracking number and new quantity from the request body.
+    const { trackingNumber, newQuantity } = req.body;
 
-        // Finds the index of the tracking item in the 'trackingData' array that matches the given tracking number.
-        const index = trackingData.findIndex(item => item.trackingNumber === trackingNumber);
+    // Finds the index of the tracking item in the 'trackingData' array that matches the given tracking number.
+    const index = trackingData.findIndex(item => item.trackingNumber === trackingNumber);
 
-        // Checks if the tracking item was found (i.e., index is not -1).
-        if (index !== -1) {
-            // Update the remaining quantity
-            trackingData[index].remaining = Number(newQuantity);
+    // Checks if the tracking item was found (i.e., index is not -1).
+    if (index !== -1) {
+        // Updates the 'remaining' field of the found tracking item to the new quantity.
+        trackingData[index].remaining = Number(newQuantity);
 
-            // Check if the quantity is 2 or more and matches the remaining exactly
-            const item = trackingData[index];
-            if (item.quantity >= 2 && item.remaining === item.quantity) {
-                console.log(`Archiving tracking number: ${trackingNumber}, Quantity: ${item.quantity}, Remaining: ${item.remaining}`);
+        // Checks if the remaining quantity is 0.
+        if (trackingData[index].remaining === 0) {
+            // If remaining is 0, moves the item to the archived data.
+            archivedTrackingData.push(trackingData[index]);
+            saveArchivedTrackingData(); // Saves the updated archived tracking data.
 
-                // Move the item to the archive
-                archivedTrackingData.push(item);
-                saveArchivedTrackingData(); // Save the updated archived tracking data
-
-                // Remove the item from active tracking data
-                trackingData.splice(index, 1);
-                saveTrackingData(); // Save the updated active tracking data
-
-                // Respond with success message
-                return res.send(`Tracking number ${trackingNumber} archived successfully.`);
-            }
-
-            // Respond with updated remaining message
-            saveTrackingData();
-            return res.send('Remaining quantity updated successfully.');
-        } else {
-            // If the tracking number is not found in 'trackingData', responds with a 404 status and an error message.
-            console.error(`Tracking number ${trackingNumber} not found.`);
-            res.status(404).send('Tracking number not found');
+            // Removes the item from active tracking data.
+            trackingData.splice(index, 1);
         }
-    });
-}
 
+        // Saves the updated active tracking data.
+        saveTrackingData();
+
+        // Responds with a success message.
+        res.send('remaining updated successfully');
+    } else {
+        // If the tracking number is not found in 'trackingData', responds with a 404 status and an error message.
+        res.status(404).send('Tracking number not found');
+    }
+});
+}
 
 /*
     Endpoint: /update-remaining
@@ -249,94 +242,8 @@ function updateRemainingWEB0ToArchive(app) {
         Returns a success message if the update is successful.
         If the tracking number is not found, returns a 404 error with an appropriate message.
 */
-// Count UP FOR POWERSHELL
-// Count UP FOR POWERSHELL 
+
 function updateRemainingMin1(app) {
-    app.post('/update-remaining', (req, res) => {
-        console.log('--- Raw Request Debugging ---');
-        console.log('Raw Request Body:', req.body);
-
-        // Extract parameters from the request
-        let { trackingNumber, serialNumber, newQuantity } = req.body;
-
-        // Sanitize inputs
-        trackingNumber = trackingNumber ? String(trackingNumber).trim() : null;
-        serialNumber = serialNumber ? String(serialNumber).trim() : null;
-        newQuantity = newQuantity !== undefined ? Number(newQuantity) : null;
-
-        console.log('Received Parameters:');
-        console.log('Tracking Number:', trackingNumber);
-        console.log('Serial Number:', serialNumber);
-        console.log('newQuantity:', newQuantity);
-
-        // Validate parameters
-        if (!trackingNumber || !serialNumber || newQuantity === null || newQuantity < 0) {
-            console.log(`Missing or invalid parameters: trackingNumber = ${trackingNumber}, serialNumber = ${serialNumber}, newQuantity = ${newQuantity}`);
-            console.log('Raw Request Body for Debugging:', JSON.stringify(req.body, null, 2));
-            return res.status(400).send('Invalid or missing parameters');
-        }
-
-        console.log(`/update-remaining \n Request to update quantity and remaining for tracking number: ${trackingNumber}, serial number: ${serialNumber}`);
-
-        // Fetch the tracking item
-        const trackingItem = trackingData.find(item => item.trackingNumber === trackingNumber);
-
-        if (trackingItem) {
-            // Ensure devices array exists
-            if (!Array.isArray(trackingItem.devices)) {
-                trackingItem.devices = [];
-            }
-
-            // Check if serial number exists in devices
-            const existingDevice = trackingItem.devices.find(device => device.serialNumber === serialNumber);
-
-            if (existingDevice) {
-                console.log(`/update-remaining \n Serial number ${serialNumber} already exists for tracking number ${trackingNumber}.`);
-                return res.send(`Device with serial number ${serialNumber} is already in the system. Quantity and remaining were not updated.`);
-            } else {
-                // Add the serial number to the devices array
-                trackingItem.devices.push({ serialNumber });
-
-                // Update `quantity` and `remaining`
-                trackingItem.quantity = newQuantity; // Update quantity
-                trackingItem.remaining += 1; // Increment remaining count
-
-                saveTrackingData();
-
-                console.log(`/update-remaining \n Added serial number ${serialNumber}, updated quantity to ${trackingItem.quantity}, and incremented remaining to ${trackingItem.remaining} for tracking number ${trackingNumber}.`);
-                return res.send(`Device with serial number ${serialNumber} added successfully. Quantity and remaining updated.`);
-            }
-        } else {
-            console.log(`/update-remaining \n Tracking number ${trackingNumber} not found.`);
-            return res.status(404).send('Tracking number not found');
-        }
-    });
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// COUNT DOWN FOR POWERSHELL
-//function updateRemainingMin1(app) 
-/*function updateRemainingMin1COUNTDOWN(app) {
 app.post('/update-remaining', (req, res) => {
     // Extracts the tracking number and new quantity from the request body.
     const { trackingNumber, newQuantity } = req.body;
@@ -368,7 +275,6 @@ app.post('/update-remaining', (req, res) => {
     }
 });
 }
-*/
 
 //module.exports = { updateOrderNumber_serialNumber, updateDeviceOrderNumber, updateQuantityWEBMin1, updateRemainingWEB0ToArchive, updateRemainingMin1  };
 

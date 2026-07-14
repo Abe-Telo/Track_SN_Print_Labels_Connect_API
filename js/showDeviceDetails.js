@@ -46,13 +46,13 @@ function showDeviceDetails(trackingNumber, isArchived = false) {
                     <td>${device['Return_Reason']}</td>
                     <td>${device.notApprovedReason}</td>-->
                     <td>
-                        <input type="text" 
-                               value="${device.OrderNumber || ''}" 
-                               ${device.OrderNumber ? 'disabled' : ''} 
+                        <input type="text"
+                               value="${device.OrderNumber || ''}"
+                               ${device.OrderNumber ? 'disabled' : ''}
                                onchange="linkOrderNumber(this, '${device.serialNumber}')" />
                     </td>
-                    <td><img src="details_icon.png" class="details-icon" onclick="orderDetailsModal('${device.serialNumber}')"></td>
-                    <td><img src="print_icon.png" class="print-icon" onclick="printLabel('${device.serialNumber}')"></td>
+                    <td><img src="../media/details_icon.png" class="details-icon" onclick="orderDetailsModal('${device.serialNumber}')"></td>
+                    <td><img src="media/print_icon.png" class="print-icon" onclick="printLabel('${device.serialNumber}')"></td>
                 </tr>
             `).join('');
 
@@ -113,7 +113,7 @@ function orderDetailsModal(serialNumber) {
             let contentHtml = `<h2>Details for Serial Number: ${serialNumber}</h2>
                                <button onclick="editDeviceDetails('${serialNumber}')">Edit</button>`;
 
-            // Add device details 
+            // Add device details
             contentHtml += device.status ? `<p>Status: ${device.status}</p>` : '';
             contentHtml += device.notes ? `<p>Notes: ${device.notes}</p>` : '';
             contentHtml += device.OrderNumber ? `<p>Order Number: ${device.OrderNumber}</p>` : '';
@@ -149,8 +149,8 @@ function orderDetailsModal(serialNumber) {
             contentHtml += orderData.externallyFulfilledByName ? `<p>Externally Fulfilled By Name: ${orderData.externallyFulfilledByName}</p>` : '';
             contentHtml += orderData.labelMessages ? `<p>Label Messages: ${orderData.labelMessages}</p>` : '';
         }
-			
-			
+
+
 
             modalContent.innerHTML = contentHtml;
             showOrderDetailsModal();
@@ -166,15 +166,15 @@ function orderDetailsModal(serialNumber) {
 function formatShipTo(shipToData) {
     if (!shipToData) return 'N/A';
     return `${shipToData.name}, ${shipToData.street1}, ${shipToData.city}, ${shipToData.state}, ${shipToData.postalCode}, ${shipToData.country}`;
-} 
+}
 
 function editDeviceDetails(serialNumber) {
     // Fetch current device details
     fetch(`/get-details-by-serial/${serialNumber}`)
         .then(response => response.json())
         .then(device => {
-			
-            // Populate all fields 
+
+            // Populate all fields
             document.getElementById('editSerialNumber').value = serialNumber;
             document.getElementById('editModel').value = device.model || '';
             document.getElementById('editCPU').value = device.cpu || '';
@@ -189,8 +189,8 @@ function editDeviceDetails(serialNumber) {
             document.getElementById('editInAccount').checked = device.InAccount;
             document.getElementById('editReturnReason').value = device['Return_Reason'] || '';
             document.getElementById('editNotApprovedReason').value = device.notApprovedReason || '';
-			
-			
+
+
 						// Create a submit button
             const submitButton = document.createElement('button');
             submitButton.textContent = 'Save Changes';
@@ -198,7 +198,7 @@ function editDeviceDetails(serialNumber) {
 
             const form = document.getElementById('editDeviceForm');
             form.appendChild(submitButton);
-			
+
 
             // Show the modal
             document.getElementById('editDeviceModal').style.display = 'block';
@@ -215,9 +215,9 @@ function closeEditModal() {
 
 function submitEditForm(serialNumber, trackingNumber) {
 	  //  event.preventDefault(); // Prevent form submission
-		
-		
-		
+
+
+
 	    //const serialNumber = document.getElementById('editSerialNumber').value;
     const updatedData = {
         trackingNumber: "MS_2016040335",
@@ -311,10 +311,10 @@ function showOrderDetailsModal() {
 function closeOrderDetailsModal() {
     document.getElementById('orderDetailsModal').style.display = 'none';
 }
- 
 
 
-/* This should be used with a submit button, If ever added. 
+
+/* This should be used with a submit button, If ever added.
 function linkOrderNumber(inputElement, serialNumber) {
     const orderNumber = inputElement.value;
     fetch(`/update-order-number/${serialNumber}`, {
@@ -343,7 +343,7 @@ function showMoreDetailsModal(serialNumber) {
         .then(response => response.json())
         .then(details => {
             const moreDetailsContent = document.getElementById('moreDetailsContent');
-            
+
             // Assuming 'details' contains additional info to be displayed
             moreDetailsContent.innerHTML = `
                 <p>Serial Number: ${details.serialNumber}</p>
@@ -406,7 +406,7 @@ function printLabel(serialNumber) {
     const url = `/preview-label/${serialNumber}`;
     document.getElementById('labelPreviewFrame').src = url;
     showLabelPreviewModal();
-}*/ 
+}*/
 
 
 
@@ -575,7 +575,7 @@ function printLabel(serialNumber) {
         .catch(error => console.error('Error printing label:', error));
 }
 */
- 
+
  /*
  // Updated function to handle label preview
 function printLabel(serialNumber) {

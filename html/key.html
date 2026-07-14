@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Windows Product Keys</title>
+    <link rel="stylesheet" href="/path_to_your_stylesheet.css"> <!-- If you have external CSS -->
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f7f7f7;
+        }
+
+        h1 {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .add-btn, .confirm-btn, .bulk-action-btn {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+
+        .add-btn:hover, .confirm-btn:hover, .bulk-action-btn:hover {
+            background-color: #45a049;
+        }
+
+        table {
+            width: 90%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+
+        td {
+            background-color: #fff;
+        }
+
+        #add-key-form {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: inline-block;
+            width: 150px;
+            text-align: right;
+            padding-right: 10px;
+        }
+
+        input, select {
+            padding: 8px;
+            margin-bottom: 10px;
+            width: 200px;
+        }
+
+        button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Manage Windows Product Keys</h1>
+
+    <!-- Bulk Actions Dropdown -->
+    <div style="text-align: center; margin-bottom: 20px;">
+        <select id="bulk-action" onchange="toggleBulkActions()">
+            <option value="">Select Bulk Action</option>
+            <option value="delete">Delete</option>
+            <option value="update">Update</option>
+        </select>
+        <button class="bulk-action-btn" onclick="applyBulkAction()" style="display: none;">Apply Action</button>
+    </div>
+
+    <!-- Button to show the form for adding a new product key -->
+    <button class="add-btn" onclick="document.getElementById('add-key-form').style.display='block';">
+        Add Product Key
+    </button>
+
+    <!-- Add new key form -->
+    <div id="add-key-form">
+        <h2>Add a New Product Key</h2>
+        <form id="add-key-form-element">
+            <label for="version">Windows Version:</label>
+            <select id="version" name="version" required>
+                <option value="pro10">Pro 10</option>
+                <option value="pro11">Pro 11</option>
+                <option value="home10">Home 10</option>
+                <option value="home11">Home 11</option>
+            </select><br>
+
+            <label for="productKey">Product Key:</label>
+            <input type="text" id="productKey" name="productKey" required><br>
+
+            <label for="licenseCount">Number of Licenses:</label>
+            <input type="number" id="licenseCount" name="licenseCount" required><br>
+
+            <button type="submit" class="confirm-btn">Submit</button>
+        </form>
+    </div>
+
+    <!-- Table displaying the product keys -->
+    <table class="keys-table">
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="select-all" onclick="toggleSelectAll()"> All</th>
+                <th>Windows Version</th>
+                <th>Product Key</th>
+                <th>Licenses</th>
+                <th>Date Added (NY Time)</th>
+                <th>Used</th>
+                <th>SN</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="keys-table-body">
+            <!-- Data rows will be inserted here by JavaScript -->
+        </tbody>
+    </table>
+<!-- Bulk action dropdown and apply button -->
+<div>
+    <select id="bulk-action-dropdown">
+        <option value="">Select bulk action</option>
+        <option value="delete">Delete Selected</option>
+        <option value="update">Update Selected</option>
+    </select>
+    <button id="bulk-apply-btn">Apply</button>
+</div>
+
+    <!-- Place your script here to ensure it's loaded after the HTML -->
+    <script src="/js/key.js"></script>
+    <script>
+        // Toggle bulk actions
+        function toggleBulkActions() {
+            const action = document.getElementById('bulk-action').value;
+            const bulkBtn = document.querySelector('.bulk-action-btn');
+            bulkBtn.style.display = action ? 'inline-block' : 'none';
+
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            checkboxes.forEach(checkbox => checkbox.style.display = action ? 'inline-block' : 'none');
+        }
+
+        // Select all toggle
+        function toggleSelectAll() {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            const selectAll = document.getElementById('select-all').checked;
+            checkboxes.forEach(checkbox => checkbox.checked = selectAll);
+        }
+
+        // Apply bulk action
+        function applyBulkAction() {
+            const action = document.getElementById('bulk-action').value;
+            const selectedRows = Array.from(document.querySelectorAll('.row-checkbox:checked'))
+                .map(checkbox => checkbox.dataset.productkey);
+
+            if (action === 'delete') {
+                // Call a function to delete selected product keys
+                bulkDelete(selectedRows);
+            } else if (action === 'update') {
+                // Call a function to bulk update selected product keys
+                bulkUpdate(selectedRows);
+            }
+        }
+
+        // Display license availability as "2 out of 5 available"
+        function displayLicenseAvailability(total, used) {
+            return `${used} out of ${total} available`;
+        }
+    </script>
+</body>
+</html>

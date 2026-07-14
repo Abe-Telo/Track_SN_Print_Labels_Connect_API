@@ -1,4 +1,5 @@
-module.exports = function(app) {
+ 
+
 /*
    '/get-archived-device-details/:trackingNumber' Endpoint Overview:
 
@@ -12,6 +13,7 @@ module.exports = function(app) {
        3. If found, returns the associated device details in JSON format.
        4. If not found, sends a 404 error with 'Tracking number not found in archived data'.
 */
+function getArchivedDeviceDetails_trackingNumber(app) {
 app.get('/get-archived-device-details/:trackingNumber', (req, res) => {
     const trackingNumber = req.params.trackingNumber;
     const item = archivedTrackingData.find(td => td.trackingNumber === trackingNumber);
@@ -22,11 +24,10 @@ app.get('/get-archived-device-details/:trackingNumber', (req, res) => {
         res.status(404).send('Tracking number not found in archived data');
     }
 });
+}
 
 
-
-
-/*
+ /*
    '/get-device-details/:trackingNumber' Endpoint Overview:
 
    - Purpose: Retrieves device details associated with a specific tracking number from active tracking data.
@@ -39,6 +40,7 @@ app.get('/get-archived-device-details/:trackingNumber', (req, res) => {
        3. If found, returns device details in JSON format.
        4. If not found, sends a 404 error with a message 'Tracking number not found'.
 */
+function getDeviceDetails_trackingnumber(app) {
 app.get('/get-device-details/:trackingNumber', (req, res) => {
     const trackingNumber = req.params.trackingNumber;
     const item = trackingData.find(td => td.trackingNumber === trackingNumber);
@@ -49,6 +51,7 @@ app.get('/get-device-details/:trackingNumber', (req, res) => {
         res.status(404).send('Tracking number not found');
     }
 });
+}
 
 
 /* 
@@ -70,33 +73,43 @@ function getDeviceDetailsByTrackingNumber(trackingNumber) {
     return []; // This should return an array of device details
 }
 */
+function verifytracking_lastFour(app) {
+    // This is used for PowerShell, on the Device itself. 
+    app.get('/verify-tracking/:lastFourDigits', (req, res) => {
+        const lastFourDigits = req.params.lastFourDigits.trim();
 
-// This is used for powershell, on the Device itself. 
-app.get('/verify-tracking/:lastFourDigits', (req, res) => {
-    // Retrieves the last four digits of a tracking number from the request URL.
-    const lastFourDigits = req.params.lastFourDigits;
+        // Validate length
+        if (lastFourDigits.length < 4 || lastFourDigits.length > 8) {
+            return res.status(400).send('Tracking digits must be between 4 and 8 characters');
+        }
 
-    // Gets the current week, presumably as a specific format or value.
-    const currentWeek = getCurrentWeek();
-    
-    // Filters the 'trackingData' to find entries that match three conditions:
-    // 1. The tracking number ends with the specified last four digits.
-    // 2. The date of the tracking data falls within the current week.
-    // 3. There are remaining items (i.e., 'remaining' is greater than 0).
-    const matchedTrackings = trackingData.filter(td =>  
-        td.trackingNumber.endsWith(lastFourDigits) &&
-        isCurrentWeek(td.date, currentWeek) &&
-        td.remaining > 0
-    );
+        // Add debug logs
+        console.log(`Searching for tracking numbers ending with: "${lastFourDigits}"`);
 
-    // If there are matched tracking entries, it returns them as a JSON response.
-    // Otherwise, it sends a 404 status with a message indicating no match found.
-    if (matchedTrackings.length > 0) {
-        res.json(matchedTrackings);
-    } else {
-        res.status(404).send('No matching tracking data found');
-    }
-});
+        // Filter for matching tracking numbers
+        const matchedTrackings = trackingData.filter(td => {
+            const trackingEndsWith = td.trackingNumber.slice(-lastFourDigits.length) === lastFourDigits;
+
+            // Check for remaining > 0 condition (commented out)
+            // const hasRemaining = td.remaining > 0;
+
+            console.log(`Checking: ${td.trackingNumber}, Ends With "${lastFourDigits}": ${trackingEndsWith}`);
+
+            // Commented out remaining > 0 to include entries with remaining = 0
+            return trackingEndsWith; // && hasRemaining;
+        });
+
+        // Return matched trackings or error message
+        if (matchedTrackings.length > 0) {
+            console.log("Matched Tracking Entries:", matchedTrackings);
+            res.json(matchedTrackings);
+        } else {
+            console.log(`No matching tracking data found for last four digits: "${lastFourDigits}"`);
+            res.status(404).send('No matching tracking data found');
+        }
+    });
+}
+
 
 /*
    '/get-details-by-serial/:serialNumber' Endpoint Overview:
@@ -113,28 +126,72 @@ app.get('/verify-tracking/:lastFourDigits', (req, res) => {
        3. Returns device details in JSON format if found.
        4. Sends a 404 error with 'Device not found' if no matching device is found in either data source.
 */
+
 // Search device by Serial Number
-app.get('/get-details-by-serial/:serialNumber', (req, res) => {
-    const serialNumber = req.params.serialNumber.toLowerCase();
+function getdetailsby_serialnumber(app) {
+    app.get('/get-details-by-serial/:serialNumber', (req, res) => {
+        const serialNumber = req.params.serialNumber;
 
-    // Search in active tracking data
-    let device = trackingData.flatMap(td => td.devices)
-                      .find(d => d.serialNumber.toLowerCase() === serialNumber);
+        // Validate the input serialNumber
+        if (!serialNumber) {
+            console.error("Serial number is missing or undefined.");
+            return res.status(400).send('Serial number is required');
+        }
 
-    // If not found in active data, search in archived data
-    if (!device) {
-        device = archivedTrackingData.flatMap(td => td.devices)
-                         .find(d => d.serialNumber.toLowerCase() === serialNumber);
-    }
+        const serialNumberLower = serialNumber.toLowerCase(); // Convert to lowercase for case-insensitive comparison
+        const combinedTrackingData = [...trackingData, ...archivedTrackingData];
 
-    if (device) {
-        res.json(device);
+        // Search for devices in both trackingData and archivedTrackingData
+        let deviceDetails = combinedTrackingData.flatMap(trackingEntry =>
+            (trackingEntry.devices || []).filter(device =>
+                device.serialNumber && device.serialNumber.toLowerCase() === serialNumberLower
+            ).map(device => ({
+                ...device,
+                InternalTrackingNumber: trackingEntry.InternalTrackingNumber || trackingEntry.trackingNumber,
+                InternalTrackingDate: trackingEntry.date,
+                InternalTrackingQuantity: trackingEntry.quantity,
+                InternalTrackingRemaining: trackingEntry.remaining
+            }))
+        );
+
+        if (deviceDetails.length > 0) {
+            res.json(deviceDetails[0]); // Assuming only one device per serial number
+        } else {
+            console.log(`Device not found for serial number: ${serialNumber}`);
+            res.status(404).send('Device not found');
+        }
+    });
+}
+
+
+
+function getdetailsby_orderNumber(app) {
+app.get('/get-details-by-order/:orderNumber', (req, res) => {
+    const orderNumber = req.params.orderNumber;
+    const combinedTrackingData = [...trackingData, ...archivedTrackingData];
+
+    const devicesMatchingOrderNumber = combinedTrackingData.flatMap(trackingEntry =>
+        (trackingEntry.devices || []).map(device => ({
+            ...device,
+            InternalTrackingNumber: trackingEntry.trackingNumber, // Attach InternalTrackingNumber from the parent tracking entry
+            InternalTrackingDate: trackingEntry.date, // Attach InternalTrackingNumber from the parent tracking entry
+            InternalTrackingQuantity: trackingEntry.quantity, // Attach InternalTrackingNumber from the parent tracking entry
+            InternalTrackingRemaining: trackingEntry.remaining, // Attach InternalTrackingNumber from the parent tracking entry
+            // Include any other trackingEntry fields you want to attach to each device
+        })).filter(device =>
+            device.OrderNumber === orderNumber
+        )
+    );
+
+    if (devicesMatchingOrderNumber.length > 0) {
+        res.json(devicesMatchingOrderNumber);
     } else {
-        res.status(404).send('Device not found');
+        res.status(404).send('No devices found for the provided order number');
     }
 });
+}
 
-/* Just added new. 
+/* Just added new.
 app.get('/find-tracking-by-serial/:serialNumber', (req, res) => {
     // Extracts the serial number from the request URL.
     const serialNumber = req.params.serialNumber;
@@ -184,4 +241,14 @@ app.get('/verify-tracking/:lastFourDigits', (req, res) => {
     }
 });
 */
-};
+
+
+module.exports = { 
+	//gettrackingdata, 
+	//getarchivedtrackingdata, 
+	getArchivedDeviceDetails_trackingNumber, 
+	getDeviceDetails_trackingnumber, 
+	getDeviceDetails_trackingnumber,
+	verifytracking_lastFour,
+	getdetailsby_serialnumber,
+	getdetailsby_orderNumber};

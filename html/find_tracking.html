@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Order Details</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+		
+		
+/* Add this new class with the grid properties */
+.order-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* Creates three columns of equal width */
+    gap: 20px; /* Space between grid items */
+    align-items: start; /* Aligns content to the top of the grid container */
+}
+
+/* Revert .container to only the styles that were originally applied */
+.container {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+    /* No display: grid; here */
+}
+
+/* ... rest of your styles ... */	
+		
+.tables-row {
+    #display: flex;
+    #flex-wrap: wrap;
+    /* Remove flex related properties */
+    border: 1px solid #ddd; /* Optional: for visual separation of tables */
+}
+#.table-wrapper {
+#    flex-grow: 1;
+#    flex-basis: auto; /* this allows the tables to grow as needed */
+#    margin: 0 10px;
+#}
+.table-wrapper {
+    margin: 0 10px;
+    box-sizing: border-box; /* Ensures that padding and border are included in the width */
+}
+
+		
+       # .table-wrapper {
+		#flex: 1 1 100%;
+        #    flex-basis: calc(33.333% - 20px);
+       #     margin: 0 10px;
+       #     flex-grow: 1;
+       # }
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+th, td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+        th {
+            background-color: #f2f2f2;
+        }
+        /* Use for empty cells to keep the layout but hide content */
+        .empty-cell {
+            visibility: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Search by Tracking or Order Number from Shipstaion API. (Amazon traking will not work)</h1>
+		<h4>#TODO: 1. Make sure it loops all API. 2. Use UPS, USPS, FEDEX API To get an idea of name address. PAID. 3. Find Serial number locally via tracking or order#</h4>
+        <label for="trackingNumber">Please enter <u><b>FULL</b></u> Tracking Or OrderNumber:</label>
+        <input type="text" id="trackingNumber" name="trackingNumber">
+        <button onclick="fetchOrderData()">Search</button>
+    </div>
+
+    <div id="orderDetails" class="container order-grid"></div>
+
+
+    <script>
+async function fetchOrderData() {
+    const identifier = document.getElementById('trackingNumber').value;
+    if (!identifier) {
+        alert('Please enter a tracking number or an order number.');
+        return;
+    }
+
+    let combinedData = {};
+    let warehouseData = {}; // Initialize as an empty object to avoid undefined access
+
+    try {
+        let response = await fetch(`/get-fullResponse-by-tracking/${identifier}`);
+        if (!response.ok) {
+            response = await fetch(`/get-tracking-by-order/${identifier}`);
+        }
+        if (!response.ok) {
+            throw new Error('Failed to fetch data using the provided identifier.');
+        }
+        combinedData = await response.json();
+
+        // Normalize the data structure
+        if (combinedData.shipmentDetails) {
+            combinedData.apiTrackingfullResponse = combinedData.shipmentDetails;
+        }
+
+        const orderNumber = combinedData.apiTrackingfullResponse?.orderNumber || combinedData.orderNumber;
+
+        if (orderNumber) {
+            const orderDetailsResponse = await fetch(`/get-order-full/${orderNumber}`);
+            if (orderDetailsResponse.ok) {
+                const orderDetails = await orderDetailsResponse.json();
+                combinedData.orderDetails = orderDetails;
+                if (orderDetails.items) {
+                    combinedData.items = orderDetails.items;
+                }
+            }
+        }
+
+        const warehouseId = combinedData.apiTrackingfullResponse?.warehouseId;
+        if (warehouseId) {
+            response = await fetch(`/get-warehouse/${warehouseId}`);
+            if (response.ok) {
+                warehouseData = await response.json();
+            }
+        }
+
+        combinedData.warehouseData = warehouseData; // Assign regardless of fetch outcome
+
+        displayOrderDetails(combinedData);
+    } catch (error) {
+        console.error('Error fetching order details:', error);
+        document.getElementById('orderDetails').innerText = `Error fetching order details: ${error.message}`;
+    }
+}
+
+
+ 
+
+
+
+
+
+function displayOrderDetails(data) { 
+    console.log(data); // For debugging
+    // Target the element with the 'order-grid' class
+    const orderDetails = document.getElementById('orderDetails');
+    orderDetails.innerHTML = ''; // Clear previous details
+    orderDetails.className = 'container order-grid'; // Make sure to set the correct class name
+
+    // Row for Order Information
+    const Row1 = document.createElement('div');
+    Row1.className = 'tables-row';
+    orderDetails.appendChild(Row1);
+
+    createTable(Row1, {
+        orderNumber: data.orderNumber,
+        ...data.apiTrackingfullResponse
+    }, 'Order Information', false, ["shipTo", "weight", "dimensions", "insuranceOptions", "advancedOptions" ]);
+	 
+
+    // Row for Advanced Options and Weight & Dimensions
+    const Row2 = document.createElement('div');
+    Row2.className = 'tables-row';
+    orderDetails.appendChild(Row2);
+
+    if (data.apiTrackingfullResponse.advancedOptions) {
+        createTable(Row2, data.apiTrackingfullResponse.advancedOptions, 'Advanced Options'); 
+    }
+    if (data.apiTrackingfullResponse.insuranceOptions) { 
+        createTable(Row2, data.apiTrackingfullResponse.insuranceOptions, 'Insurance Options');
+    }    
+
+
+
+
+
+
+    if (data.warehouseData.originAddress) { 
+		let originAddress = { ...data.warehouseData.originAddress };
+
+		["street2", "street3", "country", "addressVerified", "state", "city"].forEach(key => {
+		delete originAddress[key];
+		});
+
+
+
+	  
+		   // createTable(Row2, { orderNumber: data.orderNumber, ...data }, 'Order Information');
+		
+       // createTable(Row2, data.items, 'Item');
+       // createTable(Row2, {
+		//"warehouseId": data.warehouseData.warehouseId], 'raw');
+		
+  /*  createTable(Row2, {
+        warehouseId: data.warehouseData.warehouseId,
+        createDate: data.warehouseData.createDate,
+        isDefault: data.warehouseData.isDefault, 
+    }, 'Warehouse Information', true,["street2", "street3", "country", "addressVerified", "state", "city"] );
+		*/
+       // createTable(Row2, data.warehouseData.createDate, 'raw');
+       // createTable(Row2, data.warehouseData.isDefault, 'raw');
+        createTable(Row2, data.warehouseData.originAddress, 'warehouse origin Address', false, ["street2", "street3", "country", "addressVerified", "state", "city"]); 
+    }
+	
+    if (data.warehouseData.returnAddress) { 
+        createTable(Row2, data.warehouseData.returnAddress, 'warehouse return Address', false, ["residential", "street2", "street3", "country", "addressVerified", "state", "city"]);
+	}
+
+// Wrapping the warehouseId in an object to fit the expected structure of createTable
+if (data.warehouseData && data.warehouseData.warehouseId) { 
+		// Combine selected warehouseData properties with the sanitized originAddress
+		let warehouseInfoData = {
+			"Warehouse ID": data.warehouseData.warehouseId,
+			//WarehouseCreateDate: data.warehouseData.createDate,
+			isWarehouseDefault: data.warehouseData.isDefault, 
+		};
+		createTable(Row2, warehouseInfoData, 'Warehouse Information');  	
+}
+
+
+
+
+
+    // Row for Shipping Address
+    const Row3 = document.createElement('div');
+    Row3.className = 'tables-row';
+    orderDetails.appendChild(Row3);
+
+    if (data.items) {
+	    //createTable(Row3, data.items, 'ITEMS', false, [data.items.options, data.items.imageUrl]);
+        createTable(Row3, data.items, 'ITEM', false, ["options", "weight"]);
+    }
+    if (data.apiTrackingfullResponse.weight || data.apiTrackingfullResponse.dimensions) {
+        createTable(Row3, getWeightDimensionsDetails(data.apiTrackingfullResponse), 'Weight & Dimensions');
+    }	
+	if (data.apiTrackingfullResponse.shipTo) { 
+        createTable(Row3, data.apiTrackingfullResponse.shipTo, 'Shipping Address', false, ["street2","street3",]);
+    }
+	
+	
+}
+
+
+
+// Rest of your functions (createTable, createEmptyCell, getWeightDimensionsDetails) remain unchanged
+
+function createTable_AllObjects(parent, data, title) {
+    if (Array.isArray(data)) {
+        // Create a section for items
+        const itemsSection = document.createElement('section');
+        itemsSection.className = 'items-section';
+        const sectionTitle = document.createElement('h2');
+        sectionTitle.textContent = title;
+        itemsSection.appendChild(sectionTitle);
+        parent.appendChild(itemsSection);
+
+        // Iterate over each item and create a nested table
+        data.forEach((item, index) => {
+            const itemTitle = document.createElement('h3');
+            itemTitle.textContent = `Item ${index + 1}`;
+            itemsSection.appendChild(itemTitle);
+
+            const nestedTable = createNestedTable(item);
+            itemsSection.appendChild(nestedTable);
+        });
+    } else if (typeof data === 'object') {
+        const tableWrapper = document.createElement('div');
+        tableWrapper.className = 'table-wrapper';
+        parent.appendChild(tableWrapper);
+
+        const table = createNestedTable(data);
+        tableWrapper.appendChild(table);
+
+        const headerRow = table.insertRow(0);
+        const th = document.createElement('th');
+        th.textContent = title;
+        th.colSpan = 2;
+        headerRow.appendChild(th);
+    }
+}
+
+
+function createTable(parent, data, title, showAllObjects = false, excluding = []) {
+    const tableWrapper = document.createElement('div');
+    tableWrapper.className = 'table-wrapper';
+    parent.appendChild(tableWrapper);
+
+    const table = document.createElement('table');
+    tableWrapper.appendChild(table);
+
+    const thead = document.createElement('thead');
+    table.appendChild(thead);
+    const headerRow = document.createElement('tr');
+    thead.appendChild(headerRow);
+    const th = document.createElement('th');
+    th.textContent = title;
+    th.colSpan = 2; // Assuming two columns for key-value pairs
+    headerRow.appendChild(th);
+
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    // Convert excluding items to a lookup set for efficiency
+    const excludeSet = new Set(excluding);
+
+    // Define a function to append rows to the table body
+    const addRow = (key, value) => {
+        // Skip keys that are in the exclusion set
+        if (excludeSet.has(key)) {
+            return;
+        }
+
+        const row = tbody.insertRow();
+        const cellKey = row.insertCell();
+        cellKey.textContent = key;
+        const cellValue = row.insertCell();
+
+        // Determine how to display the value
+        if (showAllObjects && typeof value === 'object' && value !== null) {
+            cellValue.textContent = JSON.stringify(value, null, 2); // Stringify object
+        } else if (typeof value === 'object' && value !== null) {
+            cellValue.textContent = '[Complex Object]'; // Placeholder for complex objects
+        } else {
+            cellValue.textContent = value; // Display simple data types directly
+        }
+    };
+
+    // Handle data if it's an array
+    if (Array.isArray(data)) {
+        data.forEach((item, index) => {
+            // Optionally, create a section header for each item
+            Object.entries(item).forEach(([key, value]) => {
+                addRow(key, value); // Add each property of the item as a row
+            });
+            // Optionally, add a separator after each item except the last
+            if (index < data.length - 1) {
+                const separatorRow = tbody.insertRow();
+                const cell = separatorRow.insertCell();
+                cell.colSpan = 2;
+                cell.className = 'separator'; // Make sure to style this class for visual separation
+            }
+        });
+    } else if (typeof data === 'object' && data !== null) {
+        // Handle data if it's a single object
+        Object.entries(data).forEach(([key, value]) => {
+            addRow(key, value); // Add each property of the object as a row
+        });
+    } else {
+        // Handle data if it's a single value (string, number, etc.)
+        addRow(title, data); // Use title as key, and data as value
+    }
+}
+
+
+function createTable_good2(parent, data, title, showAllObjects = false, excluding = []) {
+    const tableWrapper = document.createElement('div');
+    tableWrapper.className = 'table-wrapper';
+    parent.appendChild(tableWrapper);
+
+    const table = document.createElement('table');
+    tableWrapper.appendChild(table);
+
+    const thead = document.createElement('thead');
+    table.appendChild(thead);
+    const headerRow = document.createElement('tr');
+    thead.appendChild(headerRow);
+    const th = document.createElement('th');
+    th.textContent = title;
+    th.colSpan = 2; // Assuming two columns for key-value pairs
+    headerRow.appendChild(th);
+
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    // Convert excluding items to a lookup set for efficiency
+    const excludeSet = new Set(excluding);
+
+    if (Array.isArray(data) || typeof data === 'object' && data !== null) {
+        Object.entries(data).forEach(([key, value]) => {
+            // Skip keys that are in the exclusion set
+            if (excludeSet.has(key)) {
+                return;
+            }
+
+            const row = tbody.insertRow();
+            const cellKey = row.insertCell();
+            cellKey.textContent = key;
+
+            const cellValue = row.insertCell();
+            if (showAllObjects && typeof value === 'object' && value !== null) {
+                // Stringify object if it's not excluded and should be fully displayed
+                cellValue.textContent = JSON.stringify(value, null, 2);
+            } else if (typeof value === 'object' && value !== null) {
+                // Placeholder text for complex objects if not fully displaying them
+                cellValue.textContent = '[Complex Object]';
+            } else {
+                // Direct display of value for simple data types
+                cellValue.textContent = value;
+            }
+        });
+    } else if (typeof data === 'string' || typeof data === 'number') {
+        // Handling single string or number values by creating a row with the title as the key
+        const row = tbody.insertRow();
+        const cellKey = row.insertCell();
+        cellKey.textContent = title;
+        const cellValue = row.insertCell();
+        cellValue.textContent = data;
+    }
+    // Optionally, handle other data types as needed
+}
+
+
+function createTable_good1(parent, data, title, showAllObjects = false, excluding = []) {
+    const tableWrapper = document.createElement('div');
+    tableWrapper.className = 'table-wrapper';
+    parent.appendChild(tableWrapper);
+
+    const table = document.createElement('table');
+    tableWrapper.appendChild(table);
+
+    const thead = document.createElement('thead');
+    table.appendChild(thead);
+    const headerRow = document.createElement('tr');
+    thead.appendChild(headerRow);
+    const th = document.createElement('th');
+    th.textContent = title;
+    th.colSpan = 2; // Assuming two columns for key-value pairs
+    headerRow.appendChild(th);
+
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    // Convert excluding items to a lookup set for efficiency
+    const excludeSet = new Set(excluding);
+
+    const addRow = (key, value) => {
+        // Skip keys that are in the exclusion set
+        if (excludeSet.has(key)) {
+            return;
+        }
+
+        const row = tbody.insertRow();
+        const cellKey = row.insertCell();
+        cellKey.textContent = key;
+        const cellValue = row.insertCell();
+        
+        // Check if value is an object and showAllObjects is true or not an object
+        if (showAllObjects && typeof value === 'object' && value !== null) {
+            cellValue.textContent = JSON.stringify(value, null, 2); // Stringify object
+        } else if (typeof value === 'object' && value !== null) {
+            cellValue.textContent = '[Complex Object]'; // Display placeholder for complex object
+        } else {
+            cellValue.textContent = value; // Display value directly
+        }
+    };
+
+    // Handle array of items
+    if (Array.isArray(data)) {
+        data.forEach((item, index) => {
+            // Create a section header for the first item
+            if (index === 0) {
+                const sectionTitle = document.createElement('h3');
+                //sectionTitle.textContent = `${title} ${index + 1}`;
+                parent.appendChild(sectionTitle);
+            }
+
+            // Create a table for each item in the array
+            const itemTableWrapper = document.createElement('div');
+            itemTableWrapper.className = 'table-wrapper';
+            parent.appendChild(itemTableWrapper);
+
+            const itemTable = document.createElement('table');
+            itemTableWrapper.appendChild(itemTable);
+            const itemTbody = document.createElement('tbody');
+            itemTable.appendChild(itemTbody);
+
+            Object.entries(item).forEach(([key, value]) => {
+                // Apply exclusions to each key in the item
+                addRow(key, value);
+            });
+        });
+    } else {
+        // Handle single object data
+        Object.entries(data).forEach(([key, value]) => {
+            addRow(key, value);
+        });
+    }
+}
+
+
+function createTable_ok1(parent, data, title, showAllObjects = false, excluding = []) {
+    const tableWrapper = document.createElement('div');
+    tableWrapper.className = 'table-wrapper';
+    parent.appendChild(tableWrapper);
+
+    const table = document.createElement('table');
+    tableWrapper.appendChild(table);
+
+    const thead = document.createElement('thead');
+    table.appendChild(thead);
+    const headerRow = document.createElement('tr');
+    thead.appendChild(headerRow);
+    const th = document.createElement('th');
+    th.textContent = title;
+    th.colSpan = 2; // Assuming two columns for key-value pairs
+    headerRow.appendChild(th);
+
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    // Convert excluding items to a lookup set for efficiency
+    const excludeSet = new Set(excluding);
+
+    const addRow = (key, value) => {
+        // Skip keys that are in the exclusion set
+        if (excludeSet.has(key)) {
+            return;
+        }
+
+        const row = tbody.insertRow();
+        const cellKey = row.insertCell();
+        cellKey.textContent = key;
+        const cellValue = row.insertCell();
+        
+        // Display objects as JSON strings if showAllObjects is true
+        if (showAllObjects && typeof value === 'object' && value !== null) {
+            cellValue.textContent = JSON.stringify(value, null, 2);
+        } else if (typeof value === 'object' && value !== null) {
+            cellValue.textContent = '[Complex Object]';
+        } else {
+            cellValue.textContent = value;
+        }
+    };
+
+    if (Array.isArray(data)) {
+        data.forEach((item, index) => {
+            Object.entries(item).forEach(([key, value]) => addRow(key, value));
+            if (index < data.length - 1) {
+                const separator = tbody.insertRow();
+                const cell = separator.insertCell();
+                cell.colSpan = 2;
+                cell.className = 'separator';
+            }
+        });
+    } else {
+        Object.entries(data).forEach(([key, value]) => addRow(key, value));
+    }
+}
+
+
+function appendRow(tbody, key, value, showAllObjects) {
+    const row = tbody.insertRow();
+    const cellKey = row.insertCell();
+    const cellValue = row.insertCell();
+    cellKey.textContent = key;
+    
+    // Check if value is an object and if we should show all nested objects
+    if (showAllObjects && typeof value === 'object' && value !== null) {
+        cellValue.textContent = JSON.stringify(value, null, 2);
+    } else if (!showAllObjects && typeof value === 'object' && value !== null) {
+        cellValue.textContent = '[Complex Object]'; // Placeholder text
+    } else {
+        cellValue.textContent = value;
+    }
+}
+
+function createTableOLD(parent, data, title) {
+    const tableWrapper = document.createElement('div');
+    tableWrapper.className = 'table-wrapper';
+    parent.appendChild(tableWrapper);
+
+    const table = document.createElement('table');
+    tableWrapper.appendChild(table);
+
+    // Create the table header
+    const thead = document.createElement('thead');
+    table.appendChild(thead);
+    const headerRow = document.createElement('tr');
+    thead.appendChild(headerRow);
+    const th = document.createElement('th');
+    th.textContent = title;
+    th.colSpan = 2; // Assuming two columns for key-value pairs
+    headerRow.appendChild(th);
+
+    // Create the table body
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    // Populate the table with data
+    Object.entries(data).forEach(([key, value]) => {
+        const row = tbody.insertRow();
+        const cellKey = row.insertCell();
+        cellKey.textContent = key;
+        const cellValue = row.insertCell();
+        cellValue.textContent = value;
+    });
+}
+
+
+function createEmptyCell(parent) {
+const emptyCellWrapper = document.createElement('div');
+emptyCellWrapper.className = 'table-wrapper empty-cell';
+parent.appendChild(emptyCellWrapper);
+}
+
+
+
+function getWeightDimensionsDetails(apiResponse) {
+const details = {};
+
+
+if (apiResponse.weight) {
+    details['Weight Value'] = `${apiResponse.weight.value} ${apiResponse.weight.units}`;
+}
+if (apiResponse.dimensions) {
+    details['Dimensions'] = `${apiResponse.dimensions.length} x ${apiResponse.dimensions.width} x ${apiResponse.dimensions.height} ${apiResponse.dimensions.units}`;
+}
+
+return details;
+}
+		 
+	
+	 
+	
+    function adjustBottomRow(row) {
+        // If there are 2 cells (empty + Shipping Address), add another empty cell
+        if (row.children.length === 2) {
+            createEmptyCell(row, 'table-wrapper', true);
+        }
+        // If there's only 1 cell (Shipping Address), add two empty cells
+        else if (row.children.length === 1) {
+            createEmptyCell(row, 'table-wrapper', true);
+            createEmptyCell(row, 'table-wrapper', true);
+        }
+    }	
+
+
+function getWeightDimensionsDetails(apiResponse) {
+    // Initialize an empty object for weight and dimensions details
+    const details = {};
+
+    // Check if weight data exists and add it to the details object
+    if (apiResponse.weight) {
+        details['Weight Value'] = `${apiResponse.weight.value} ${apiResponse.weight.units}`;
+        // Include any additional weight-related details as needed
+    }
+
+    // Check if dimensions data exists and add it to the details object
+    if (apiResponse.dimensions) {
+        details['Dimensions'] = `${apiResponse.dimensions.length} x ${apiResponse.dimensions.width} x ${apiResponse.dimensions.height} ${apiResponse.dimensions.units}`;
+        // Include any additional dimensions-related details as needed
+    }
+
+    return details;
+}
+
+
+// Utility function to create a nested table for properties that are objects
+function createNestedTable(data) {
+    const table = document.createElement('table');
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    Object.entries(data).forEach(([key, value]) => {
+        const row = tbody.insertRow();
+        const cellKey = row.insertCell();
+        cellKey.textContent = key;
+        const cellValue = row.insertCell();
+
+        // If the value is an object, recurse and create a nested table
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            cellValue.appendChild(createNestedTable(value));
+        } else {
+            cellValue.textContent = value;
+        }
+    });
+
+    return table;
+}
+
+    </script>
+</body>
+</html>

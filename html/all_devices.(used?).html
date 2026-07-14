@@ -1,0 +1,49 @@
+<!--<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>All Devices</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid black;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+	
+
+<!--
+    <script>
+        // Fetch the device data and populate the table
+        fetch('/list-all-devices')
+            .then(response => response.json())
+            .then(devices => {
+                const tableBody = document.getElementById('devicesTable').getElementsByTagName('tbody')[0];
+                devices.forEach(device => {
+                    let row = tableBody.insertRow();
+                    row.insertCell().textContent = device.serialNumber;
+                    row.insertCell().textContent = device.model;
+                    row.insertCell().textContent = device.cpu;
+                    row.insertCell().textContent = device.ram;
+                    row.insertCell().textContent = device.hd;
+                    row.insertCell().textContent = device.windowsVersion;
+                    row.insertCell().textContent = device.sku;
+                    row.insertCell().textContent = device.notes;
+                    row.insertCell().textContent = device.activationStatus;
+                });
+            })
+            .catch(error => console.error('Error:', error));
+    </script>
+	
+</body>
+</html>
+-->

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-
+OLD DIR
 <html>
 
 <head>
@@ -43,63 +43,50 @@
             display: none;
         }
     </style>
-	
+
+
 	<style>
-	/* Style for the Modal Background */
-.OrderDetailsModal-modal {
-    display: none; /* Hidden by default */
-    position: fixed; /* Stay in place */
-    z-index: 1; /* Sit on top */
-    left: 0;
+
+/* Add this CSS to your existing styles */
+.sticky {
+    position: sticky;
     top: 0;
-    width: 100%; /* Full width */
-    height: 100%; /* Full height */
-    overflow: auto; /* Enable scroll if needed */
-    background-color: rgb(0,0,0); /* Fallback color */
-    background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
-    padding-top: 60px;
-}
-
-/* Modal Content Box */
-.OrderDetailsModal-modal-content {
-    background-color: #fefefe;
-    margin: 5% auto; /* 5% from the top and centered */
-    padding: 20px;
-    border: 1px solid #888;
-    width: 80%; /* Could be more or less, depending on screen size */
-}
-
-/* The Close Button */
-.OrderDetailsModal-close {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-}
-
-.OrderDetailsModal-close:hover,
-.OrderDetailsModal-close:focus {
-    color: black;
-    text-decoration: none;
-    cursor: pointer;
-}
-
-.modal {
-    display: none;
-    /* Other styling */
+    background-color: white;
+    //z-index: 1000;
 }
 
 
-	</style>
-	
-	
+.small-input {
+    width: 50px; /* Adjust the width as needed */
+}
+
+#DevicesTable th {
+    text-align: center;
+    vertical-align: middle;
+}
+
+#DevicesTable input, #DevicesTable select {
+    display: inline-block; /* Adjust this to inline-block or inline */
+    margin-right: 5px; /* Add spacing between elements */
+    margin-bottom: 5px; /* Optional: add if needed */
+}
+
+.small-input {
+    width: 50px; /* Adjust the width as needed */
+}
+
+
+
+</style>
+
 	<!-- In the <head> section of your HTML files -->
 <link rel="stylesheet" href="css/model.ShowDeviceDetail.css">
 
 
-
 </head>
 <body>
+
+ 
 <script>
 /*
     function toggleSection(sectionId) {
@@ -111,28 +98,42 @@
         // Show the requested section
         document.getElementById(sectionId).style.display = 'block';
     }
-	
+
 	*/
 
 
     // Runs when the DOM content is loaded
     document.addEventListener("DOMContentLoaded", function() {
+
+	//---------------------------------------------------
+	//Scrool page with sticky, Add sticky class to Table or TH
+	const header = document.getElementById('DevicesTable').getElementsByTagName('thead')[0];
+    const stickyOffset = header.offsetTop;
+    window.onscroll = function() {
+        if (window.pageYOffset > stickyOffset) {
+            header.classList.add("sticky");
+        } else {
+            header.classList.remove("sticky");
+        }
+    };
+	//---------------------------------------------------
+
         // Load the last opened section if it exists
         const lastOpenedSection = localStorage.getItem('lastOpenedSection');
         if (lastOpenedSection) {
             toggleSection(lastOpenedSection);
         }
-		
+
 		        // Load the last content if it exists
         const lastContent = localStorage.getItem('lastContent');
         if (lastContent) {
             const lastContentObj = JSON.parse(lastContent);
             loadContent(lastContentObj);
         }
-		
+
     });
 
-	
+
 // LOAD LOCAL TOGLE DIV AND RUN SCRIPT IN JS FLDER
 	    function toggleAndLoadScript(sectionId, scriptName) {
         // Hide all sections and clear dynamic content
@@ -160,10 +161,10 @@
         document.head.appendChild(script);
     }
 	// ------------------------------------------------------------------------------------
-	
- 
-	
-	// TOGGLE BUTTON AND CLEAR 
+
+
+
+	// TOGGLE BUTTON AND CLEAR
     function toggleSection(sectionId) {
         // Hide all sections and clear dynamic content
         hideAllSections();
@@ -175,11 +176,11 @@
             section.style.display = 'block';
             // Save the opened section ID to localStorage
             localStorage.setItem('lastOpenedSection', sectionId);
-            localStorage.setItem('lastContent', sectionId); 
+            localStorage.setItem('lastContent', sectionId);
         }
     }
 // ------------------------------------------------------------------------------------
-		
+
 		// Clear toggles used in toggleSection and toggleAndLoadScript
 	    function clearDynamicContent() {
         // Assuming 'contentContainer' is the ID of the container for dynamic content
@@ -188,7 +189,7 @@
             dynamicContainer.innerHTML = '';
         }
     }
-	
+
  function hideAllSections() {
     document.querySelectorAll('.hidden').forEach(section => {
         section.style.display = 'none';
@@ -198,7 +199,7 @@
 // ------------------------------------------------------------------------------------
 
 
-//  Loads HTML or JAVA or both. 
+//  Loads HTML or JAVA or both.
     function loadContent({scriptName = null, htmlPath = null, containerId = null}) {
         // Hide all sections before loading new content
         hideAllSections();
@@ -235,7 +236,7 @@
 
         // Example usage:
         // loadScript('myScript.js'); // Load a script named 'myScript.js' from the js/ directory
- 
+
 </script>
 
 <!--
@@ -250,19 +251,19 @@
   
 
     <div class="container">
-
         <button onclick="toggleSection('AddTrackingForm')">Add Tracking</button>
         <button onclick="toggleSection('searchSection')">Search</button>  
-		<button onclick="loadContent({scriptName: 'new_entries.js', htmlPath: '/archive.html', containerId: 'contentContainer'})">In Stock</button>
-        <button onclick="toggleSection('WatingSale')">Solid</button>  
-        <button onclick="toggleSection('WatingSale')">Return</button>  
-        <button onclick="toggleSection('WatingSale')">Not Approved</button>  
+		<button onclick="loadContent({scriptName: 'new_entries.js', htmlPath: '/html/archive.html', containerId: 'contentContainer'})">All Tracking</button>
+		<!--<button onclick="loadContent({scriptName: 'all_devices.js', htmlPath: '/all_devices.html', containerId: 'contentContainer'})">All Devices</button>-->
+        <button onclick="toggleSection('devicesTable')">All Devices</button>  
+        <!--<button onclick="toggleSection('WatingSale')">Solid</button>  -->
+        <!--<button onclick="toggleSection('WatingSale')">Return</button> -->
+        <!--<button onclick="toggleSection('WatingSale')">Not Approved</button>  -->
 		<!--<button onclick="toggleSection('WatingSale')">How it works</button>  
 		<button onclick="toggleSection('WatingSale')">Sotware Updates</button>-->
 		<button onclick="loadContent({htmlPath: '/how_it_works.html', containerId: 'contentContainer'})">How it works</button>
 		<button onclick="loadContent({htmlPath: '/updates.html', containerId: 'contentContainer'})">Sotware Updates</button>
-		
-
+		<button onclick><a href="find_tracking.html">NEW Search by Tracking or Order from Shipstaion</a></button>
     </div>
 	
 	<!--<script src="js/new_entries.js"></script>-->
@@ -286,7 +287,169 @@
 
 <!--<script>loadScript('new_entries.js');</script>-->
 
+<script src="js/model_ShowAPILocalDetails.js"></script>
+<script src="js/all_devices.js"></script>
+    <div id="devicesTable" class="hidden">
+    <h1 id="allDevicesHeading">All Devices</h1>
 
+	
+<div id="filterContainer">
+        <!--<input type="text" id="filterSerialNumber" placeholder="Filter by Serial Number">-->
+<tr>
+<!-- Place this in your HTML file where you want the button to appear -->
+<div id="updateDeviceInfoContainer">
+    <button id="updateDeviceInfoButton">Update Device Info</button>
+</div>
+
+
+<!-- Place this in your HTML file where you want the button to appear -->
+<div id="updateShippingStatusContainer" style="text-align: right; margin-bottom: 10px;">
+    <button id="updateShippingStatusButton">Update Local Shipping Status</button>
+    <div id="loadingProgress" style="display: none;">
+        <span id="currentProgress">0</span>/<span id="totalDevices">0</span>
+    </div>
+</div>
+
+
+<!--
+    <th><input type="text" id="filterSerialNumber" placeholder="Filter by Serial Number"></th>
+    <th><input type="text" id="filterModel" placeholder="Filter by Model"></th>
+	<th>
+    <select id="filterWindowsVersion">
+        <option value="">All Windows Model</option>
+        <option value="10 Home">Windows 10 Home</option>
+        <option value="10 Pro">Windows 10 Pro</option>
+        <option value="11 Home">Windows 11 Home</option>
+        <option value="11 Pro">Windows 11 Pro</option> 
+    </select>
+	</th>	-->
+
+    <!--<th><input type="text" id="filterWindowsVersion" placeholder="Filter Windows"></th>-->
+
+    <!--<th><input type="text" id="filterWindowsVersion" placeholder="Filter Windows"></th>-->
+	
+	<th>
+    <select id="filterActivationStatus">
+        <option value="">Windows Active</option>
+        <option value="Active">Active</option>
+        <option value="Not Active">Not Active</option>
+    </select>
+	</th>
+    <!--<th><input type="text" id="filterSku" placeholder="Filter by SKU"></th>-->
+    <!--<th><input type="text" id="filterActivationStatus" placeholder="Filter by Activation Status"></th>-->
+
+
+	
+</tr>
+
+        <!-- Add more filters for each column as needed -->
+</div>
+	
+<table id="DevicesTable" class="sticky">
+    <thead>
+        <tr>
+            <th>
+                <center>Product</center>
+                <input type="text" id="filterSerialNumber" placeholder="Serial Number">
+                <input type="text" id="filterModel" class="small-input" placeholder="Model">
+                <input type="text" id="filterSku"   class="small-input" placeholder="SKU">
+                <select id="filterWindowsVersion">
+                    <!-- options here -->
+					<option value="">All Windows Model</option>
+					<option value="10 Home">Windows 10 Home</option>
+					<option value="10 Pro">Windows 10 Pro</option>
+					<option value="11 Home">Windows 11 Home</option>
+					<option value="11 Pro">Windows 11 Pro</option> 
+                </select>
+            </th>
+            
+            <th>
+                <center>Hardware</center>
+                <input type="text" id="filterCpu" class="small-input" placeholder="CPU">
+                <input type="text" id="filterRam" class="small-input" placeholder="RAM">
+                <input type="text" id="filterHd" class="small-input" placeholder="HD">
+            </th>
+            
+            <th>
+				<center>Internal Tracking</center>
+				<input type="text" id="filterTracking" class="" placeholder="Tracking #">
+            </th>
+            
+            <th>
+                <center>ShipStation</center>
+                <select id="filterOrderstatus">
+                    <!-- options here -->
+					<option value="">All Shipping Status</option>
+					<option value="awaiting_payment">Awaiting payment</option>
+					<option value="awaiting_shipment">awaiting_shipment</option>  
+					<option value="cancelled">Cancelled</option>	
+					<option value="Completed">Completed</option> 
+					<option value="on_hold">On Hold</option>    		
+					<option value="Procceing">Procceing</option>
+					<option value="Pending">Pending</option>  
+					<option value="pending_fulfillment">Pending fulfillment</option>
+					<option value="Processing">Processing</option>  
+					<option value="rejected_fulfillment">Rejected Fulfillment</option>  
+					<option value="shipped">Shipped</option>
+                </select>
+            </th>
+            
+            <th>
+                <center>Customer Info</center>
+                <input type="text" id="filterNameCompany" placeholder="Name | Company">
+                <input type="text" id="filterPhone" class="small-input" placeholder="Phone">
+                <input type="text" id="filterAddress" class="small-input" placeholder="Address">
+            </th>
+            
+            <th>
+                <center>Notes</center>
+                <input type="text" id="filterNotes" placeholder="Filter by Notes">
+            </th>
+            
+            <th>
+                <center>Order Number</center>
+                <input type="text" id="filterOrderNumber" placeholder="Filter by OrderNumber">
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        <!-- Table rows here -->
+    </tbody>
+</table>
+
+	<!-- Model For Preview Local And API when details is clicked-->
+	<link rel="stylesheet" href="css/model_ShowAPILocalDetails.css">
+
+	<div id="infoModal_API_Local" class="modal_API_Local">
+    <div class="modal_API_Local-content">
+        <span class="close_API_Local">&times;</span>
+        <h2>Device Information</h2>
+        <div class="tab_API_Local">
+            <button class="tablinks_API_Local" onclick="openTab(event, 'LocalData_API_Local')" id="defaultOpen_API_Local">Local Data</button>
+            <button class="tablinks_API_Local" onclick="openTab(event, 'APIData_API_Local')">API Data</button>
+
+        <div class="button-container_API_Local">
+            <button id="editButton">Edit Local Data</button>
+            <button id="saveButtonShowAPILocalDetails" style="display:none;">Save Local Data</button>
+
+            <button id="editApiButton">Edit API Data</button>
+            <button id="saveApiButton" style="display:none;">Save API Data</button>
+            <!--<button id="closeModal_API_Local">Close</button>-->
+        </div>
+        </div> 
+        <div id="LocalData_API_Local" class="tabcontent">
+            <!-- Content for Local Data -->
+        </div>
+        <div id="APIData_API_Local" class="tabcontent">
+            <!-- Content for API Data -->
+        </div> 
+    </div>
+</div>
+	
+	
+	
+</div>
+ 
 <!-- Adding Tracking number -->
 <script src="js/add.tracking.info.js"></script>
 	    <!-- Add Tracking Section -->
@@ -300,6 +463,7 @@
         <label for="quantity">Quantity:</label>
         <input type="number" id="quantity" name="quantity" required>
         <input type="submit" value="Submit">
+		<br><div id="log"></div> <!--  Logs appear here... -->
         </form>
         <!--<button onclick="showSection('trackingTableSection')">View Recent Entries</button>-->
  
@@ -310,7 +474,7 @@
         </table>
 		   <button id="deleteButton">Delete Selected</button>
            <button id="saveButton">Save Changes</button>
-	       <div id="log"></div> <!--  Logs appear here... -->
+	       <!--<div id="log"></div> <!--  Logs appear here... -->
  
  
  <!-- Place this where you want the past week's data to appear -->
@@ -439,8 +603,8 @@
 
         <!--<button onclick="toggleAndLoadScript('ViewAllEntries', 'new_entries.js')">View All Entries</button>
         <button onclick="loadContent({scriptName: 'new_entries.js'})">Load JS Only</button>
-        <!--<button onclick="loadContent({htmlPath: '/archive.html', containerId: 'contentContainer'})">Load HTML Only</button>
-        <button onclick="loadContent({scriptName: 'new_entries.js', htmlPath: '/archive.html', containerId: 'contentContainer'})">Load Both</button>-->
+        <!--<button onclick="loadContent({htmlPath: 's/archive.html', containerId: 'contentContainer'})">Load HTML Only</button>
+        <button onclick="loadContent({scriptName: 'new_entries.js', htmlPath: '/html/archive.html', containerId: 'contentContainer'})">Load Both</button>-->
 
 		<!--<button onclick="toggleAndLoadScript({scriptName: 'search.all.js'})">Search JS Only</button>
 		<button onclick="toggleAndLoadScript('searchSection', 'search.all.js')">Search toggleAndLoadScript</button>-->

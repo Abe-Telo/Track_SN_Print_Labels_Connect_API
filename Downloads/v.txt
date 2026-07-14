@@ -1,0 +1,30 @@
+v=1.0.11
+
+VUpdate_1.09="Fixed OOBE SYSPrep Issue. You can now run Fix SYSprep on desktop. Shortcut with icon created"
+
+VUpdate_1.08="Never updated missing file Added some funchtion, Bypass OOBE, Adding H Drive,"
+VUpdate_1.08="Added some funchtion, Bypass OOBE, Adding H Drive,"
+VUpdate_1.07="Restructured the copy desktop file, hoping to resolve the order so it actually works."
+VUpdate_1.06="Added startup file, Into CopyDesktop.ps1"
+VUpdate_1.06="Fix auto online update, Into CopyDesktop.ps1"
+VUpdate_1.06="Fix reistall apps and added device manger check"
+VUpdate_1.06="added shortcuts to desktop, Added checks to run USB and then desktop script from desktop for cam and intel"
+
+VUpdate_1.05="Update Powershell to work with the model of couting up instead of couting down"
+Issue_5_Improvment="Count up instead of down. TODO FIX LOGIC OF HAVING 1 BY DEFUALT, Issue is that it will be dealted if 0 is there and wont let you add devices, so we kept 1 as fefualt for now"
+VUpdate_1.01="Removed Desktop.ini file, Coused crashing, Added surface Tools for dignostic, fix auto update, now downloads will go on desktop and can be used for multiple USB for testing"
+VUpdate_1.04="Fix online update.ps1. Allowing old powershell to work"
+VUpdate_1.04="FIX Updates, Fix Win 11 Remote sign issue: added into main run."
+
+
+Issue_1="Reinstall preinstall apps not in the same DIr, so it cant run"  
+Issue_2="Updates wont work directly from the USB run, Need to check both, if it works when online update is run, and see if the issue is still happining."
+Issue_3="Add RunOnce in startup or as a schedule in audit mode"
+Issue_4_Resolved="Fix Windows 11 Run as and give remote script Permishion"
+Feature_1="Instead of manuly entring the shipping ammount, Each time it scans, It should go up a number if the tracking matches and SN is not duplicate. "
+Feature_2="Add (this will add a issue of not removing old tracking from tracking DB) "
+Feature_3="Fix up Options in powershell"
+Feature_4="Show data in jordens PC to promote his to do more"
+Feature_5="Add a color change when it goes to exit(Run Once)"
+Feature_6="Notpad Test white color"
+Feature_8="Shortcut Drive H, ByPass OOBE"

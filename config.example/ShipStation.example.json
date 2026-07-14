@@ -1,0 +1,11 @@
+{
+  "ShipStation": [
+    {
+      "Name": "Example Account",
+      "CompanyName": "ShipStation Inc.",
+      "Email": "you@example.com",
+      "api_key": "YOUR_SHIPSTATION_API_KEY",
+      "api_secret": "YOUR_SHIPSTATION_API_SECRET"
+    }
+  ]
+}

@@ -5,8 +5,9 @@
 document.addEventListener("DOMContentLoaded", function() {
     document.getElementById("date").valueAsDate = new Date();
     document.getElementById("quantity").value = 1;
+
     const trackingForm = document.getElementById("trackingForm");
-    const beep = new Audio('beep-1-sec-6162.mp3'); // Path to beep sound file
+    const beep = new Audio('./beep.mp3'); // Ensure this path is correct
 
     trackingForm.addEventListener("submit", async function(e) {
         e.preventDefault();
@@ -18,24 +19,19 @@ document.addEventListener("DOMContentLoaded", function() {
         try {
             const alreadyAdded = await wasTrackingNumberAdded(trackingNumber);
             console.log('Tracking Number Check:', trackingNumber, 'Already Added:', alreadyAdded);
-            if (alreadyAdded) {
-                beep.play(); // Play beep sound
-                document.getElementById('log').textContent = 'Error: Tracking number already added';
-                trackingNumberInput.style.backgroundColor = 'red'; // Highlight in red as an error
-                return; // Prevent further execution
-            }
         } catch (error) {
             console.error('Error in checking tracking number:', error);
-            // You may decide to handle this differently
             return; // Optionally stop the execution on error
         }
 
         // Highlight or clear the tracking number
-        trackingNumberInput.style.backgroundColor = trackingNumber === '' ? '' : 'yellow';
-        trackingNumberInput.select();
-
-        // Reset quantity to 1 after form submission
-        document.getElementById("quantity").value = 1;
+        if (trackingNumber === '') {
+            trackingNumberInput.style.backgroundColor = 'red';
+            trackingNumberInput.select();
+            return; // Exit early if tracking number is empty
+        } else {
+            trackingNumberInput.style.backgroundColor = '';
+        }
 
         const formData = new FormData(this);
 
@@ -45,6 +41,11 @@ document.addEventListener("DOMContentLoaded", function() {
         })
         .then(response => {
             if (!response.ok) {
+                if (response.status === 400) { // Assuming 400 status for duplicate tracking number
+                    beep.play(); // Play beep sound for duplicate tracking number
+                    document.getElementById('log').textContent = 'Error: Tracking number already added';
+                    trackingNumberInput.style.backgroundColor = 'red'; // Highlight in red as an error
+                }
                 throw new Error('Network response was not ok');
             }
             return response.text();
@@ -53,6 +54,11 @@ document.addEventListener("DOMContentLoaded", function() {
             document.getElementById('log').textContent = 'Tracking data added successfully';
             fetchAndDisplayTrackingData();
             fetchPastWeekTrackingData();
+
+            // Reset form elements only after successful submission
+            trackingNumberInput.value = ''; // Reset tracking number
+            trackingNumberInput.style.backgroundColor = ''; // Reset background color
+            document.getElementById("quantity").value = 1; // Reset quantity to 1
         })
         .catch(error => {
             console.error('Error:', error);
@@ -64,6 +70,7 @@ document.addEventListener("DOMContentLoaded", function() {
     fetchAndDisplayTrackingData();
     fetchPastWeekTrackingData();
 });
+
 
 async function wasTrackingNumberAdded(trackingNumber) {
     try {
@@ -83,7 +90,7 @@ async function wasTrackingNumberAdded(trackingNumber) {
     }
 }
 
- 
+
 
 // Fetch and display tracking data
         function fetchAndDisplayTrackingData() {
@@ -92,7 +99,7 @@ async function wasTrackingNumberAdded(trackingNumber) {
             .then(data => {
                 const table = document.getElementById('trackingTable');
                 table.innerHTML = '<tr><th>Select</th><th>Date</th><th>Tracking Number</th><th>Quantity</th><th>Repairing</th></tr>';
-        
+
                 data.forEach(item => {
                     const row = table.insertRow();
                     const checkboxCell = row.insertCell();
@@ -102,7 +109,7 @@ async function wasTrackingNumberAdded(trackingNumber) {
                     checkboxCell.appendChild(checkbox);
 
                     row.insertCell().innerText = item.date;
-			
+
                     //row.insertCell().innerText = item.trackingNumber;
                     const trackingNumberCell = row.insertCell();
                     const trackingNumberLink = document.createElement('a');
@@ -110,25 +117,59 @@ async function wasTrackingNumberAdded(trackingNumber) {
                     trackingNumberLink.textContent = item.trackingNumber;
                     trackingNumberLink.onclick = function() { showDeviceDetails(item.trackingNumber); };
                     trackingNumberCell.appendChild(trackingNumberLink);
-			
+
                     const quantityCell = row.insertCell();
                     const quantityInput = document.createElement('input');
                     quantityInput.type = 'number';
                     quantityInput.value = item.quantity;
                     quantityInput.disabled = false; // Make the quantity input read-only
                     quantityCell.appendChild(quantityInput);
-            
+
                     const remainingCell = row.insertCell();
                     const remainingInput = document.createElement('input');
                     remainingInput.type = 'number';
                     remainingInput.value = item.remaining;
                     remainingInput.disabled = false; // Make the remaining input read-only
                     remainingCell.appendChild(remainingInput);
-			 
-                });
-            })
-            .catch(error => console.error('Failed to fetch tracking data:', error));
-        }
+
+
+                // Action (Done Button)
+                const actionCell = row.insertCell();
+                const doneButton = document.createElement('button');
+                doneButton.textContent = 'Done';
+                doneButton.onclick = function () {
+                    markAsDone(item.trackingNumber); // Call the markAsDone function
+                };
+                actionCell.appendChild(doneButton);
+            });
+        })
+        .catch(error => console.error('Failed to fetch tracking data:', error));
+}
+
+// Function to handle marking a tracking number as Done
+function markAsDone(trackingNumber) {
+    if (confirm(`Are you sure you want to mark tracking number ${trackingNumber} as done?`)) {
+        fetch('/mark-tracking-done', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ trackingNumber })
+        })
+        .then(response => {
+            if (response.ok) {
+                alert(`Tracking number ${trackingNumber} marked as done.`);
+                fetchAndDisplayTrackingData(); // Refresh the table
+            } else {
+                response.text().then(errorMessage => alert(`Failed to mark as done: ${errorMessage}`));
+            }
+        })
+        .catch(error => {
+            console.error('Error marking tracking as done:', error);
+            alert('An error occurred while marking the tracking as done.');
+        });
+    }
+}
 
 // Fetch and display past week's tracking data
 function fetchPastWeekTrackingData() {
@@ -143,7 +184,7 @@ function fetchPastWeekTrackingData() {
 
             // Date
             row.insertCell().innerText = item.date;
-            
+
             // Tracking Number
             const trackingNumberCell = row.insertCell();
             const trackingNumberLink = document.createElement('a');
@@ -153,7 +194,7 @@ function fetchPastWeekTrackingData() {
             //trackingNumberLink.addEventListener('click', () => showDeviceDetails(item.trackingNumber));
 			trackingNumberLink.addEventListener('click', () => showDeviceDetails(item.trackingNumber, true));
             trackingNumberCell.appendChild(trackingNumberLink);
-            
+
             // Quantity
             row.insertCell().innerText = item.quantity;
 
@@ -206,7 +247,7 @@ function updateQuantities() {
     });
 }
 
-		
+
 
             function deleteSelected() {
                 var checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
