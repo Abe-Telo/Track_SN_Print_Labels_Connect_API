@@ -105,6 +105,7 @@ app.use('/css', express.static(path.join(__dirname, 'css')));
 app.use('/media', express.static(path.join(__dirname, 'media')));
 app.use('/Downloads', express.static(path.join(__dirname, 'Downloads')));
 app.use('/ps', express.static(path.join(__dirname, 'ps')));
+app.use('/workstation', express.static(path.join(__dirname, 'workstation')));
 app.use('/print', express.static(path.join(__dirname, 'print')));
 app.use('/html', express.static(path.join(__dirname, 'html')));
 app.use('/pdf', express.static(path.join(__dirname, 'pdf')));
@@ -145,6 +146,12 @@ app.get('/archive', (req, res) => {
 // Import the key module
 const { AddproductKey } = require('./module/key.js');
 AddproductKey(app);
+
+const { scriptsPage } = require('./module/scripts_page.js');
+scriptsPage(app); // /list-scripts for Scripts & Tools page
+
+const { setupFail2banDashboard } = require('./module/fail2ban_dashboard.js');
+setupFail2banDashboard(app); // authenticated /api/fail2ban/*
 
 
 const { 

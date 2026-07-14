@@ -13,6 +13,7 @@ Read **[AGENTS.md](./AGENTS.md)** first — server access, USB workflow, release
 Additional detail:
 
 - [docs/USB_RELEASE.md](./docs/USB_RELEASE.md) — how to publish core/big/bootstrap packages and `v.txt`
+- [docs/FAIL2BAN.md](./docs/FAIL2BAN.md) — SSH protection and dashboard operations
 
 ## Stack
 

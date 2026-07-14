@@ -1,47 +1,75 @@
-document.addEventListener("DOMContentLoaded", function() {
-    if (document.getElementById('searchButton') && document.getElementById('searchInput')) {
-        document.getElementById('searchButton').addEventListener('click', function() { 
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase(); 
 
-            fetch(`/search?term=${encodeURIComponent(searchTerm)}`)
-                .then(response => response.json())
-                .then(data => {
-                    displaySearchResults(data, searchTerm);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-        });
+function performSearch() {
+    const input = document.getElementById('searchInput');
+    const statusEl = document.getElementById('searchStatus');
+    const table = document.getElementById('resultsTable');
+    if (!input || !table) return;
+
+    const searchTerm = (input.value || '').trim().toLowerCase();
+    if (!searchTerm) {
+        if (statusEl) statusEl.textContent = 'Enter a search term first.';
+        table.innerHTML = '';
+        return;
     }
-});
+
+    if (statusEl) statusEl.textContent = 'Searching...';
+
+    fetch(`/search?term=${encodeURIComponent(searchTerm)}`)
+        .then(response => {
+            if (!response.ok) throw new Error('Search request failed (' + response.status + ')');
+            return response.json();
+        })
+        .then(data => {
+            displaySearchResults(Array.isArray(data) ? data : [], searchTerm);
+            if (statusEl) {
+                statusEl.textContent = data.length
+                    ? `Found ${data.length} tracking record(s).`
+                    : 'No matches. Try tracking #, serial #, model, order #, or notes.';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            if (statusEl) statusEl.textContent = 'Search error: ' + error.message;
+            table.innerHTML = '';
+        });
+}
 
 function displaySearchResults(results, searchTerm) {
     const table = document.getElementById('resultsTable');
     table.innerHTML = '';
 
-    // Create table headers
     const headerRow = table.insertRow();
-    headerRow.innerHTML = `<th>Date</th><th>Tracking Number</th><th>Quantity</th><th>Remaining</th><th>Devices</th>`;
+    headerRow.innerHTML = '<th>Date</th><th>Tracking Number</th><th>Qty</th><th>Remaining</th><th>Source</th><th>Devices</th>';
 
-    // Populate table rows with search results
     results.forEach(item => {
         const row = table.insertRow();
-        const trackingNumberCell = document.createElement('td');
+        row.insertCell().innerText = item.date || '';
+
+        const trackingNumberCell = row.insertCell();
         const trackingNumberLink = document.createElement('a');
         trackingNumberLink.href = '#';
-        trackingNumberLink.textContent = item.trackingNumber;
-        trackingNumberLink.onclick = function() { showDeviceDetails(item.trackingNumber, item.isArchived); };
+        trackingNumberLink.textContent = item.trackingNumber || '';
+        trackingNumberLink.onclick = function (e) {
+            e.preventDefault();
+            showDeviceDetails(item.trackingNumber, !!item.isArchived);
+        };
         trackingNumberCell.appendChild(trackingNumberLink);
-        row.appendChild(trackingNumberCell);
 
-        row.insertCell().innerText = item.date;
-        row.insertCell().innerText = item.quantity;
-        row.insertCell().innerText = item.remaining;
+        row.insertCell().innerText = item.quantity ?? '';
+        row.insertCell().innerText = item.remaining ?? '';
+        row.insertCell().innerText = item.isArchived ? 'Archived' : 'Active';
 
-        const deviceInfoCell = document.createElement('td');
-        item.devices.forEach(device => {
-            const deviceText = `${device.serialNumber} - ${device.model}`;
-            if (device.serialNumber.toLowerCase().includes(searchTerm) || device.model.toLowerCase().includes(searchTerm)) {
+        const deviceInfoCell = row.insertCell();
+        (item.devices || []).forEach(device => {
+            const sn = device.serialNumber || '';
+            const model = device.model || '';
+            const order = device.OrderNumber || device.orderNumber || '';
+            const deviceText = order
+                ? `${sn} - ${model} (Order: ${order})`
+                : `${sn} - ${model}`;
+
+            const hay = (sn + ' ' + model + ' ' + order + ' ' + (device.notes || '') + ' ' + (device.sku || '')).toLowerCase();
+            if (searchTerm && hay.includes(searchTerm)) {
                 const highlighted = document.createElement('span');
                 highlighted.style.backgroundColor = 'yellow';
                 highlighted.textContent = deviceText;
@@ -51,67 +79,24 @@ function displaySearchResults(results, searchTerm) {
             }
             deviceInfoCell.appendChild(document.createElement('br'));
         });
-
-        row.appendChild(deviceInfoCell);
     });
 }
 
-
-
-
-/*
-function displaySearchResults(results, searchTerm) {
-    const table = document.getElementById('resultsTable');
-    table.innerHTML = '';
-
-    // Create table headers
-    const headerRow = table.insertRow();
-    headerRow.innerHTML = `<th>Date</th><th>Tracking Number</th><th>Quantity</th><th>Remaining</th><th>Devices</th>`;
-
-    // Define a function to populate table rows
-    function populateRows(items, isArchived) {
-        items.forEach(item => {
-            const row = table.insertRow();
-            const trackingNumberCell = document.createElement('td');
-            const trackingNumberLink = document.createElement('a');
-            trackingNumberLink.href = '#';
-            trackingNumberLink.textContent = item.trackingNumber;
-            trackingNumberLink.onclick = function() { showDeviceDetails(item.trackingNumber, isArchived); };
-            trackingNumberCell.appendChild(trackingNumberLink);
-            row.appendChild(trackingNumberCell);
-
-            row.insertCell().innerText = item.date;
-            row.insertCell().innerText = item.quantity;
-            row.insertCell().innerText = item.remaining;
-
-            const deviceInfoCell = document.createElement('td');
-            item.devices.forEach(device => {
-                const deviceText = `${device.serialNumber} - ${device.model}`;
-                if (device.serialNumber.toLowerCase().includes(searchTerm) || device.model.toLowerCase().includes(searchTerm)) {
-                    const highlighted = document.createElement('span');
-                    highlighted.style.backgroundColor = 'yellow';
-                    highlighted.textContent = deviceText;
-                    deviceInfoCell.appendChild(highlighted);
-                } else {
-                    deviceInfoCell.appendChild(document.createTextNode(deviceText));
-                }
-                deviceInfoCell.appendChild(document.createElement('br'));
-            });
-
-            row.appendChild(deviceInfoCell);
+document.addEventListener('DOMContentLoaded', function () {
+    const btn = document.getElementById('searchButton');
+    const input = document.getElementById('searchInput');
+    if (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            performSearch();
         });
     }
-
-    // Separate the results into archived and non-archived
-    const nonArchivedItems = results.filter(item => !item.isArchived);
-    const archivedItems = results.filter(item => item.isArchived);
-
-    // Populate rows for non-archived items
-    populateRows(nonArchivedItems, false);
-    //populateRows(nonArchivedItems, true);
-
-    // Populate rows for archived items
-    populateRows(archivedItems, true);
-}
-
-*/
+    if (input) {
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performSearch();
+            }
+        });
+    }
+});

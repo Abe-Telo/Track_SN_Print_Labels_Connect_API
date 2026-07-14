@@ -1,0 +1,18 @@
+[DEFAULT]
+# First ban is one hour. Repeat offenders increase up to one week.
+bantime = 1h
+findtime = 10m
+maxretry = 5
+bantime.increment = true
+bantime.factor = 2
+bantime.maxtime = 1w
+bantime.rndtime = 10m
+
+# Production uses nftables; UFW is currently inactive.
+banaction = nftables-multiport
+
+[sshd]
+enabled = true
+port = 22
+backend = systemd
+mode = aggressive

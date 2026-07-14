@@ -98,7 +98,7 @@ async function wasTrackingNumberAdded(trackingNumber) {
             .then(response => response.json())
             .then(data => {
                 const table = document.getElementById('trackingTable');
-                table.innerHTML = '<tr><th>Select</th><th>Date</th><th>Tracking Number</th><th>Quantity</th><th>Repairing</th></tr>';
+                table.innerHTML = '<tr><th>Select</th><th>Date</th><th>Tracking Number</th><th>Quantity</th><th>Repairing</th><th>Safe Archive</th></tr>';
 
                 data.forEach(item => {
                     const row = table.insertRow();
@@ -129,16 +129,37 @@ async function wasTrackingNumberAdded(trackingNumber) {
                     const remainingInput = document.createElement('input');
                     remainingInput.type = 'number';
                     remainingInput.value = item.remaining;
-                    remainingInput.disabled = false; // Make the remaining input read-only
+                    remainingInput.disabled = false; // Make the remaining input editable
                     remainingCell.appendChild(remainingInput);
 
+                    const safeArchiveCell = row.insertCell();
+                    const qty = Number(item.quantity);
+                    const rem = Number(item.remaining);
+                    if (item.autoArchivePending && item.archiveEligibleAt) {
+                        const safeDate = new Date(item.archiveEligibleAt).toLocaleDateString();
+                        safeArchiveCell.innerText = `Solved ${rem}/${qty} — safe until ${safeDate}`;
+                        safeArchiveCell.style.color = '#d97706';
+                        safeArchiveCell.title = 'All expected devices scanned (remaining = quantity). Auto-archives after 3 months unless you click Done sooner.';
+                    } else if (qty >= 1 && qty < 9000 && rem === qty) {
+                        safeArchiveCell.innerText = `Solved ${rem}/${qty} — pending save/refresh`;
+                        safeArchiveCell.style.color = '#d97706';
+                    } else if (qty >= 1 && qty < 9000) {
+                        safeArchiveCell.innerText = `${rem}/${qty} scanned`;
+                        safeArchiveCell.style.color = '#64748b';
+                    } else {
+                        safeArchiveCell.innerText = '-';
+                        safeArchiveCell.style.color = '#64748b';
+                    }
 
-                // Action (Done Button)
+
+                // Action (Done Button) — store TN on the button so the correct row is always used
                 const actionCell = row.insertCell();
                 const doneButton = document.createElement('button');
                 doneButton.textContent = 'Done';
+                doneButton.type = 'button';
+                doneButton.dataset.trackingNumber = item.trackingNumber;
                 doneButton.onclick = function () {
-                    markAsDone(item.trackingNumber); // Call the markAsDone function
+                    markAsDone(this.dataset.trackingNumber);
                 };
                 actionCell.appendChild(doneButton);
             });

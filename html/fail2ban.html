@@ -1,0 +1,49 @@
+<!-- Fragment loaded into the main app shell (Security / Fail2ban) -->
+<div class="card" style="box-shadow:none;border:none;padding:0;margin:0;">
+  <div style="display:flex;gap:1rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;">
+    <div>
+      <h1 style="margin-bottom:0.25rem;">Security / Fail2ban</h1>
+      <p style="color:#64748b;margin:0;font-size:0.9rem;">
+        SSH attack protection, active bans, recent events, and trusted IP ranges.
+      </p>
+    </div>
+    <button type="button" class="btn" id="f2bRefresh">Refresh</button>
+  </div>
+
+  <div id="f2bMessage" role="status" aria-live="polite" style="display:none;margin-top:1rem;"></div>
+
+  <div id="f2bLoading" style="color:#64748b;margin-top:1rem;">Loading Fail2ban status&hellip;</div>
+
+  <div id="f2bDashboard" style="display:none;">
+    <div id="f2bSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.75rem;margin-top:1rem;"></div>
+
+    <section style="margin-top:1.5rem;">
+      <h2 style="font-size:1.1rem;margin-bottom:0.5rem;">Currently blocked</h2>
+      <div id="f2bBanned"></div>
+    </section>
+
+    <section style="margin-top:1.5rem;">
+      <h2 style="font-size:1.1rem;margin-bottom:0.25rem;">Whitelist</h2>
+      <p style="color:#64748b;font-size:0.85rem;margin:0 0 0.65rem;">
+        Whitelisted IPs and CIDR ranges are never banned. Localhost and the trusted admin IP are protected from removal here.
+      </p>
+      <form id="f2bWhitelistForm" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+        <input
+          type="text"
+          id="f2bWhitelistIp"
+          placeholder="IP or CIDR, e.g. 203.0.113.10 or 10.0.0.0/24"
+          autocomplete="off"
+          required
+          style="flex:1;min-width:260px;padding:0.55rem 0.65rem;border:1px solid #cbd5e1;border-radius:8px;"
+        >
+        <button type="submit" class="btn">Add to whitelist</button>
+      </form>
+      <div id="f2bWhitelist"></div>
+    </section>
+
+    <section style="margin-top:1.5rem;">
+      <h2 style="font-size:1.1rem;margin-bottom:0.5rem;">Recent ban activity</h2>
+      <div id="f2bEvents"></div>
+    </section>
+  </div>
+</div>

@@ -25,6 +25,7 @@ This file is for **AI coding agents** (Cursor, Copilot, Claude, etc.) working on
 4. **Large USB zips are not in git** — `Downloads/*.zip` and `Downloads/*.exe` are gitignored; they live on the server only.
 5. **Backup before risky edits** — copy changed files to `/root/ssl/backups_tracking/` before deploy.
 6. **Publish USB updates in order** — upload zip(s) first, update `Downloads/v.txt` **last** (see USB release process below).
+7. **Fail2ban dashboard is privileged** — keep `/api/fail2ban/*` session-protected, validate every IP/CIDR, and never execute user input through a shell. See `docs/FAIL2BAN.md`.
 
 ---
 
@@ -116,6 +117,7 @@ Bump **CoreVersion** for script changes. Bump **BigVersion** only when large too
   Downloads/                # USB zips + v.txt (zips gitignored)
   workstation/              # Individual script downloads for web UI
   ps/                       # Legacy server-side PS scripts (reference)
+  deploy/fail2ban/          # Fail2ban config templates (live config is in /etc/fail2ban)
   html/index.html           # App shell (Phase 1 UI)
   js/app/shell.js           # Sidebar navigation
 ```
@@ -163,12 +165,18 @@ Production scanner (`gs2_server_v5.1_Print.ps1`) uses:
 
 ---
 
+## Fail2ban
+
+- Installed and enabled on production (SSH jail, nftables action).
+- Dashboard: left nav **Security / Fail2ban**.
+- Operations guide: `docs/FAIL2BAN.md`.
+- Live protected whitelist values are server-only in `/etc/fail2ban/orderassist-protected-whitelist.txt`.
+
 ## Pending / discussed (not built)
 
 - Returns DB for 9999 return buckets
 - UI Phase 2+ polish
 - COPY_TO_DESKTOP double-run cleanup
-- Commit full server UI diff to GitHub (large uncommitted set as of Jul 2026)
 
 ---
 
@@ -176,6 +184,8 @@ Production scanner (`gs2_server_v5.1_Print.ps1`) uses:
 
 ```bash
 systemctl is-active tracking.service
+systemctl is-active fail2ban
+fail2ban-client status sshd
 curl -s http://localhost:3000/Downloads/v.txt
 curl -s http://localhost:3000/list-scripts | head -c 500
 ```

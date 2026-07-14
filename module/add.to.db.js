@@ -69,7 +69,7 @@ const newData = {
     date,
     trackingNumber,
     quantity: Number(quantity),
-    remaining: Number(quantity),
+    remaining: 0, // starts at 0; PS/CMD +1 per scanned device until remaining === quantity
     status: 'Active',
     devices: [] // New field to store device details
 };
@@ -104,8 +104,9 @@ function addDevice(app) {
             const deviceIndex = trackingData[index].devices.findIndex(device => device.serialNumber === serialNumber);
 
             if (deviceIndex !== -1) {
-                // Update existing device information, including the date
-                trackingData[index].devices[deviceIndex] = { serialNumber, model, cpu, ram, hd, windowsVersion, sku, notes, activationStatus, status, OrderNumber, API, Account, InAccount, Return_Reason, notApprovedReason, deviceDate: deviceDateFinal };
+                // Update existing device information; keep the original scan date if one exists
+                const existingDate = trackingData[index].devices[deviceIndex].deviceDate;
+                trackingData[index].devices[deviceIndex] = { serialNumber, model, cpu, ram, hd, windowsVersion, sku, notes, activationStatus, status, OrderNumber, API, Account, InAccount, Return_Reason, notApprovedReason, deviceDate: deviceDate || existingDate || deviceDateFinal };
                 res.send('Device information updated successfully');
             } else {
                 // Add new device, including the date

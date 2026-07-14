@@ -17,14 +17,11 @@ function showDeviceDetails(trackingNumber, isArchived = false) {
                 <th>RAM</th>
                 <th>HD</th>
                 <th>Windows Version</th>
+                <th>Date Added</th>
                 <th>Status</th>
                 <th>Notes</th>
-                <!--<th>Order Number</th>
-                <th>API</th>
-                <th>Account</th>
-                <th>In Account</th>
-                <th>Return Reason</th>
-                <th>Not Approved Reason</th>-->
+                <th>Order Number</th>
+                <th>Details</th>
                 <th>Print Label</th>
             </tr>`;
 
@@ -37,7 +34,8 @@ function showDeviceDetails(trackingNumber, isArchived = false) {
                     <td>${device.ram}</td>
                     <td>${device.hd}</td>
                     <td>${device.windowsVersion}</td>
-                    <td>${device.status}</td>
+                    <td>${device.deviceDate || "-"}</td>
+                    <td>${device.activationStatus || device.status || device.orderStatus || "-"}</td>
                     <td>${device.notes}</td>
                     <!--<td>${device.OrderNumber}</td>
                     <td>${device.API}</td>
@@ -51,8 +49,8 @@ function showDeviceDetails(trackingNumber, isArchived = false) {
                                ${device.OrderNumber ? 'disabled' : ''}
                                onchange="linkOrderNumber(this, '${device.serialNumber}')" />
                     </td>
-                    <td><img src="../media/details_icon.png" class="details-icon" onclick="orderDetailsModal('${device.serialNumber}')"></td>
-                    <td><img src="media/print_icon.png" class="print-icon" onclick="printLabel('${device.serialNumber}')"></td>
+                    <td><img src="/media/details_icon.png" class="details-icon" onclick="orderDetailsModal('${device.serialNumber}')"></td>
+                    <td><img src="/media/print_icon.png" class="print-icon" onclick="printLabel('${device.serialNumber}')"></td>
                 </tr>
             `).join('');
 
@@ -114,7 +112,8 @@ function orderDetailsModal(serialNumber) {
                                <button onclick="editDeviceDetails('${serialNumber}')">Edit</button>`;
 
             // Add device details
-            contentHtml += device.status ? `<p>Status: ${device.status}</p>` : '';
+            contentHtml += device.deviceDate ? `<p>Date Added: ${device.deviceDate}</p>` : '';
+            contentHtml += (device.activationStatus || device.status) ? `<p>Status: ${device.activationStatus || device.status}</p>` : '';
             contentHtml += device.notes ? `<p>Notes: ${device.notes}</p>` : '';
             contentHtml += device.OrderNumber ? `<p>Order Number: ${device.OrderNumber}</p>` : '';
             contentHtml += device.API ? `<p>API: ${device.API}</p>` : '';
@@ -181,7 +180,7 @@ function editDeviceDetails(serialNumber) {
             document.getElementById('editRAM').value = device.ram || '';
             document.getElementById('editHD').value = device.hd || '';
             document.getElementById('editWindowsVersion').value = device.windowsVersion || '';
-            document.getElementById('editStatus').value = device.status || '';
+            document.getElementById('editStatus').value = device.activationStatus || device.status || '';
             document.getElementById('editNotes').value = device.notes || '';
             document.getElementById('editOrderNumber').value = device.OrderNumber || '';
             document.getElementById('editAPI').value = device.API || '';

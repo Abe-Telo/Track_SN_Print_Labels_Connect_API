@@ -1,185 +1,64 @@
-<!-- archive.html -->
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Archived Tracking Data</title>
-    <!-- Add styles and other head elements here -->
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            padding: 0;
-            background-color: #f4f4f4;
-        }
-        h1, h2 {
-            color: #333;
-        }
-        form, table, button {
-            margin-top: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        table, th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f0f0f0;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        .hidden {
-            display: none;
-        }
-    </style>
+<!-- Fragment loaded into the main app shell (All Tracking) -->
+<div class="card" style="box-shadow:none;border:none;padding:0;margin:0;">
+  <h1>All Tracking <span style="font-weight:500;color:#64748b;font-size:0.95rem;">(Completed / Archived)</span></h1>
+  <p style="color:#64748b;margin-top:-0.25rem;margin-bottom:1rem;font-size:0.9rem;">
+    These are tracking shipments marked <strong>Done</strong>. Click a tracking number to view devices.
+  </p>
 
-
-<link rel="stylesheet" href="css/model.ShowDeviceDetail.css">
- <!--
-<style>
-    /* Modal styles */
-    .modal {
-        display: none;
-        position: fixed;
-        z-index: 1;
-        padding-top: 100px;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        overflow: auto;
-        background-color: rgb(0,0,0);
-        background-color: rgba(0,0,0,0.4);
-    }
-
-    .modal-content {
-        background-color: #fefefe;
-        margin: auto;
-        padding: 20px;
-        border: 1px solid #888;
-        width: 80%;
-    }
-
-    .close {
-        color: #aaa;
-        float: right;
-        font-size: 28px;
-        font-weight: bold;
-    }
-
-    .close:hover,
-    .close:focus {
-        color: black;
-        text-decoration: none;
-        cursor: pointer;
-    }
-</style>-->
-
-</head>
-
-
- <body>
-    <h1>Archived Tracking Data</h1>
-    <table id="archiveTable">
-        <tr>
-            <th>Date</th>
-            <th>Tracking Number</th>
-            <th>Quantity</th>
-            <th>Remaining</th>
-        </tr>
-        <!-- Data rows will be populated using JavaScript -->
-    </table>
-
-    <div id="deviceDetailsModal" class="modal">
-        <div class="modal-content">
-            <span id="closeModal" class="close">&times;</span>
-            <h2>Device Details</h2>
-            <table id="modalTable" style="width: 100%; border-collapse: collapse;"></table>
-        </div>
+  <div id="archiveFilters" style="display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:0.85rem 1rem;margin-bottom:0.75rem;">
+    <div style="flex:1;min-width:220px;">
+      <label for="archiveSearch" style="display:block;font-size:0.8rem;font-weight:600;color:#64748b;margin-bottom:0.25rem;">Search (tracking #, serial, model, notes, order #)</label>
+      <input type="text" id="archiveSearch" placeholder="Type to filter..." style="width:100%;padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:8px;font:inherit;">
     </div>
+    <div>
+      <label for="archiveDateFrom" style="display:block;font-size:0.8rem;font-weight:600;color:#64748b;margin-bottom:0.25rem;">From date</label>
+      <input type="date" id="archiveDateFrom" style="padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:8px;font:inherit;">
+    </div>
+    <div>
+      <label for="archiveDateTo" style="display:block;font-size:0.8rem;font-weight:600;color:#64748b;margin-bottom:0.25rem;">To date</label>
+      <input type="date" id="archiveDateTo" style="padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:8px;font:inherit;">
+    </div>
+    <div>
+      <label for="archiveSort" style="display:block;font-size:0.8rem;font-weight:600;color:#64748b;margin-bottom:0.25rem;">Sort</label>
+      <select id="archiveSort" style="padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:8px;font:inherit;">
+        <option value="date_desc">Date — newest first</option>
+        <option value="date_asc">Date — oldest first</option>
+        <option value="qty_desc">Quantity — high to low</option>
+        <option value="qty_asc">Quantity — low to high</option>
+        <option value="tn_asc">Tracking # — A to Z</option>
+      </select>
+    </div>
+    <div>
+      <label for="archivePageSize" style="display:block;font-size:0.8rem;font-weight:600;color:#64748b;margin-bottom:0.25rem;">Per page</label>
+      <select id="archivePageSize" style="padding:0.5rem 0.65rem;border:1px solid #e2e8f0;border-radius:8px;font:inherit;">
+        <option value="100">100</option>
+        <option value="250">250</option>
+        <option value="500" selected>500</option>
+        <option value="1000">1000</option>
+        <option value="all">ALL</option>
+      </select>
+    </div>
+    <div>
+      <button type="button" id="archiveClearFilters" class="btn btn-secondary" style="padding:0.5rem 0.9rem;">Clear</button>
+    </div>
+  </div>
 
-    <script>
-	/*
-        document.addEventListener("DOMContentLoaded", function() {
-            fetchArchiveTrackingData();
-        });
+  <div id="archivePager" style="display:none;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+    <button type="button" id="archivePrevPage" class="btn btn-secondary" style="padding:0.35rem 0.8rem;">&larr; Prev</button>
+    <span id="archivePageInfo" style="color:#64748b;font-size:0.9rem;"></span>
+    <button type="button" id="archiveNextPage" class="btn btn-secondary" style="padding:0.35rem 0.8rem;">Next &rarr;</button>
+  </div>
 
-        function fetchArchiveTrackingData() {
-            fetch('/archived-tracking-data')
-            .then(response => response.json())
-            .then(data => {
-                const table = document.getElementById('archiveTable');
-                table.innerHTML = '<tr><th>Date</th><th>Tracking Number</th><th>Quantity</th><th>Remaining</th></tr>';
-
-                data.forEach(item => {
-                    const row = table.insertRow();
-
-                    row.insertCell().innerText = item.date;
-
-                    const trackingNumberCell = row.insertCell();
-                    const trackingNumberLink = document.createElement('a');
-                    trackingNumberLink.href = '#';
-                    trackingNumberLink.textContent = item.trackingNumber;
-                    trackingNumberLink.onclick = function() { showDeviceDetails(item.trackingNumber, true); };
-                    trackingNumberCell.appendChild(trackingNumberLink);
-
-                    row.insertCell().innerText = item.quantity;
-                    row.insertCell().innerText = item.remaining;
-                });
-            })
-            .catch(error => console.error('Failed to fetch archived tracking data:', error));
-        }
-
-        function showDeviceDetails(trackingNumber, isArchived) {
-            const endpoint = `/get-archived-device-details/${trackingNumber}`;
-            fetch(endpoint)
-            .then(response => response.json())
-            .then(devices => {
-                const modalTable = document.getElementById('modalTable');
-                modalTable.innerHTML = `<tr>
-                                            <th>Serial Number</th>
-                                            <th>Model</th>
-                                            <th>CPU</th>
-                                            <th>RAM</th>
-                                            <th>HD</th>
-                                            <th>Windows Version</th>
-                                        </tr>`;
-
-                devices.forEach(device => {
-                    const row = modalTable.insertRow();
-                    row.innerHTML = `<td>${device.serialNumber}</td>
-                                     <td>${device.model}</td>
-                                     <td>${device.cpu}</td>
-                                     <td>${device.ram}</td>
-                                     <td>${device.hd}</td>
-                                     <td>${device.windowsVersion}</td>`;
-                });
-                showModal();
-            });
-        }
-
-        function showModal() {
-            document.getElementById('deviceDetailsModal').style.display = 'block';
-        }
-		*/
-        function closeModal() {
-            document.getElementById('deviceDetailsModal').style.display = 'none';
-        }
-
-        document.getElementById('closeModal').addEventListener('click', closeModal);
-
-    </script>
-</body>
-</html>
-
+  <div id="archiveStatus" style="color:#64748b;font-size:0.9rem;margin-bottom:0.5rem;">Loading…</div>
+  <div class="table-wrap">
+    <table id="archiveTable">
+      <tr>
+        <th>Date</th>
+        <th>Tracking Number</th>
+        <th>Quantity</th>
+        <th>Remaining</th>
+        <th>Devices</th>
+      </tr>
+    </table>
+  </div>
+</div>

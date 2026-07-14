@@ -1,0 +1,73 @@
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+
+table, th, td {
+  border: 1px solid var(--border);
+}
+
+th, td {
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--surface-2);
+  font-weight: 600;
+  color: var(--text);
+}
+
+#DevicesTable thead th {
+  text-align: center;
+  vertical-align: middle;
+}
+
+#DevicesTable input,
+#DevicesTable select {
+  display: inline-block;
+  margin-right: 4px;
+  margin-bottom: 4px;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+
+.small-input {
+  width: 70px;
+  min-width: 60px;
+}
+
+.sticky {
+  position: sticky;
+  top: var(--topbar-height);
+  background: var(--surface);
+  z-index: 50;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-top: 0.75rem;
+}
+
+#filterContainer {
+  margin-bottom: 0.5rem;
+}
+
+#filterContainer th,
+#filterContainer tr {
+  border: none;
+}
+
+#filterActivationStatus {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}

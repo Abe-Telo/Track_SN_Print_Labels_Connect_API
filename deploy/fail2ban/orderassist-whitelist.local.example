@@ -1,0 +1,5 @@
+[DEFAULT]
+# Install as /etc/fail2ban/jail.d/orderassist-whitelist.local.
+# The live file is managed by the authenticated OrderAssist dashboard.
+# Replace TRUSTED_ADMIN_IP before enabling Fail2ban.
+ignoreip = 127.0.0.1/8 ::1 TRUSTED_ADMIN_IP

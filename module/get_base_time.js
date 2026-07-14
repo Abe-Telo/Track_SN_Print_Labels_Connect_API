@@ -64,13 +64,28 @@ function pastweektrackingdata(app) {
 
 app.get('/past-week-tracking-data', (req, res) => {
     try {
+        const source = Array.isArray(global.archivedTrackingData) ? global.archivedTrackingData : [];
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        oneWeekAgo.setHours(0, 0, 0, 0);
 
-        const pastWeekData = archivedTrackingData.filter(item => {
-            const itemDate = new Date(item.date);
-            return itemDate >= oneWeekAgo;
-        });
+        const byDateDesc = (a, b) => new Date(b.date) - new Date(a.date);
+
+        let pastWeekData = source
+            .filter(item => {
+                const itemDate = new Date(item.date);
+                return !isNaN(itemDate) && itemDate >= oneWeekAgo;
+            })
+            .sort(byDateDesc);
+
+        // If nothing was marked done in the last 7 days, show the most recent archived entries
+        // so the Past Week table is still useful (no archives since ~Aug 2025 otherwise).
+        if (pastWeekData.length === 0) {
+            pastWeekData = source
+                .slice()
+                .sort(byDateDesc)
+                .slice(0, 25);
+        }
 
         res.json(pastWeekData);
     } catch (error) {

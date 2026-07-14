@@ -1,3 +1,4 @@
+const { applySafeArchiveState } = require('./safe_archive.js');
 //module.exports = function(app) {
 
 
@@ -198,39 +199,29 @@ app.post('/update-remainingWEB', (req, res) => {
 */
 function updateRemainingWEB0ToArchive(app) {
     app.post('/update-remainingWEB', (req, res) => {
-        // Extracts the tracking number and new quantity from the request body.
         const { trackingNumber, newQuantity } = req.body;
+        const index = global.trackingData.findIndex(item => item.trackingNumber === trackingNumber);
 
-        // Finds the index of the tracking item in the 'trackingData' array that matches the given tracking number.
-        const index = trackingData.findIndex(item => item.trackingNumber === trackingNumber);
-
-        // Checks if the tracking item was found (i.e., index is not -1).
         if (index !== -1) {
-            // Update the remaining quantity
-            trackingData[index].remaining = Number(newQuantity);
+            const item = global.trackingData[index];
+            item.remaining = Number(newQuantity);
 
-            // Check if the quantity is 2 or more and matches the remaining exactly
-            const item = trackingData[index];
-            if (item.quantity >= 2 && item.remaining === item.quantity) {
-                console.log(`Archiving tracking number: ${trackingNumber}, Quantity: ${item.quantity}, Remaining: ${item.remaining}`);
+            // Correct workflow:
+            // remaining starts at 0 and climbs as devices are scanned.
+            // When remaining === quantity (e.g. 3=3), enter 3-month SAFE archive.
+            // Clicking Done still archives immediately.
+            // Return buckets (qty >= 9000) are excluded.
+            const changed = applySafeArchiveState(item);
+            global.saveTrackingData();
 
-                // Move the item to the archive
-                archivedTrackingData.push(item);
-                saveArchivedTrackingData(); // Save the updated archived tracking data
-
-                // Remove the item from active tracking data
-                trackingData.splice(index, 1);
-                saveTrackingData(); // Save the updated active tracking data
-
-                // Respond with success message
-                return res.send(`Tracking number ${trackingNumber} archived successfully.`);
+            if (item.autoArchivePending) {
+                return res.send(`Solved (${item.remaining}/${item.quantity}). Safe archive until ${item.archiveEligibleAt}.`);
             }
-
-            // Respond with updated remaining message
-            saveTrackingData();
+            if (changed) {
+                return res.send('Remaining updated. Safe archive cancelled (not complete).');
+            }
             return res.send('Remaining quantity updated successfully.');
         } else {
-            // If the tracking number is not found in 'trackingData', responds with a 404 status and an error message.
             console.error(`Tracking number ${trackingNumber} not found.`);
             res.status(404).send('Tracking number not found');
         }
@@ -238,19 +229,6 @@ function updateRemainingWEB0ToArchive(app) {
 }
 
 
-/*
-    Endpoint: /update-remaining
-    Method: POST
-    Purpose: To update the remaining quantity of an item tracked under a specific tracking number.
-    Functionality:
-        Receives a tracking number and a new remaining quantity via the request body.
-        Searches for the tracking item with the given tracking number.
-        If found, updates its remaining quantity to the new value and saves the updated tracking data.
-        Returns a success message if the update is successful.
-        If the tracking number is not found, returns a 404 error with an appropriate message.
-*/
-// Count UP FOR POWERSHELL
-// Count UP FOR POWERSHELL 
 function updateRemainingMin1(app) {
     app.post('/update-remaining', (req, res) => {
         console.log('--- Raw Request Debugging ---');
@@ -279,7 +257,7 @@ function updateRemainingMin1(app) {
         console.log(`/update-remaining \n Request to update quantity and remaining for tracking number: ${trackingNumber}, serial number: ${serialNumber}`);
 
         // Fetch the tracking item
-        const trackingItem = trackingData.find(item => item.trackingNumber === trackingNumber);
+        const trackingItem = global.trackingData.find(item => item.trackingNumber === trackingNumber);
 
         if (trackingItem) {
             // Ensure devices array exists
@@ -294,16 +272,25 @@ function updateRemainingMin1(app) {
                 console.log(`/update-remaining \n Serial number ${serialNumber} already exists for tracking number ${trackingNumber}.`);
                 return res.send(`Device with serial number ${serialNumber} is already in the system. Quantity and remaining were not updated.`);
             } else {
-                // Add the serial number to the devices array
-                trackingItem.devices.push({ serialNumber });
+                // Add the serial number to the devices array (stamp the scan date)
+                trackingItem.devices.push({ serialNumber, deviceDate: new Date().toISOString().slice(0, 10) });
 
-                // Update `quantity` and `remaining`
-                trackingItem.quantity = newQuantity; // Update quantity
-                trackingItem.remaining += 1; // Increment remaining count
+                // Expected quantity comes from scanner script; remaining = scanned count (+1)
+                trackingItem.quantity = newQuantity;
+                trackingItem.remaining = Number(trackingItem.remaining || 0) + 1;
 
-                saveTrackingData();
+                // When remaining hits quantity (3=3), enter 3-month safe archive
+                applySafeArchiveState(trackingItem);
 
-                console.log(`/update-remaining \n Added serial number ${serialNumber}, updated quantity to ${trackingItem.quantity}, and incremented remaining to ${trackingItem.remaining} for tracking number ${trackingNumber}.`);
+                global.saveTrackingData();
+                if (trackingItem.autoArchivePending) {
+                    global.saveArchivedTrackingData(); // no-op for active, but keeps pattern consistent if later hooks save
+                }
+
+                console.log(`/update-remaining \n Added serial number ${serialNumber}, quantity=${trackingItem.quantity}, remaining=${trackingItem.remaining}, safePending=${!!trackingItem.autoArchivePending}`);
+                if (trackingItem.autoArchivePending) {
+                    return res.send(`Device added. Solved (${trackingItem.remaining}/${trackingItem.quantity}). Safe archive until ${trackingItem.archiveEligibleAt}.`);
+                }
                 return res.send(`Device with serial number ${serialNumber} added successfully. Quantity and remaining updated.`);
             }
         } else {

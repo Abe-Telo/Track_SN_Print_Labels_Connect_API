@@ -1,0 +1,27 @@
+/* Phase 1: align existing modals with new shell without breaking class names */
+
+.modal-overlay {
+  z-index: 1000;
+}
+
+.modal,
+.OrderDetailsModal-modal,
+.modal_API_Local {
+  z-index: 1001;
+}
+
+.modal-content,
+.OrderDetailsModal-modal-content,
+.modal_API_Local-content {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+#labelPreviewModal .modal-content {
+  max-width: 720px;
+}
+
+#labelPreviewModal button {
+  margin-right: 0.5rem;
+  margin-top: 0.75rem;
+}
