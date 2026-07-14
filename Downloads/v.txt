@@ -7,4 +7,19 @@ CoreSHA256=8482f149d25ad1806c558fd6be20f675007ead342efb237514ed851455003be2
 BigVersion=1.0.11
 BigZip=tracking.big.1.0.11.zip
 BigSHA256=5202a859c3a416c1d0ad5a3d36a4ab2b85c9ae648516bc2240d1cc8784ef9090
-VUpdate_1.0.12="Added independent core and large-tools updates; installed Fios and AF7A1C with fallback; preserved the working GS tracking and Google Forms flow."
+
+VUpdate_1.0.12="Release 1.0.12: split USB into core scripts + large tools; dual Wi-Fi (Fios preferred, AF7A1C backup); new updater downloads only what changed; GS scanner remains v5.1 with OrderAssist + Google Forms."
+
+VUpdate_1.0.12_Core="Core package (tracking.core.1.0.12.zip): COPY_TO_DESKTOP.ps1, online_script_Update.ps1, gs2_server_v5.1_Print.ps1, RunOnce, InstallUpdates, shortcuts, Wi-Fi XML profiles, bootstrap markers."
+
+VUpdate_1.0.12_Big="Big package (tracking.big.1.0.11.zip): unchanged large tools from 1.0.11 — Heaven benchmark, color tests, Surface tools, MSIs, Keyboard Test, etc. Only re-downloads when BigVersion changes."
+
+Feature_1="Dual-package updater: CoreVersion and BigVersion in v.txt; USB markers .orderassist-core.version and .orderassist-big.version; download core and/or big zip only when that version changes."
+
+Feature_2="Legacy updater still works: v=1.0.12 downloads full tracking.1.0.12.zip bootstrap for older USBs."
+
+Feature_3="Wi-Fi: installs both Fios-fXcW7 (preferred) and AF7A1C (backup) in COPY_TO_DESKTOP and GS scanner; continues on whichever network connects."
+
+Feature_4="Production scanner unchanged: gs Windows Envierment.bat launches gs2_server_v5.1_Print.ps1 — OrderAssist API at orderassistnow.com:3000 plus Google Forms backup."
+
+Feature_5="Bootstrap zip includes version markers so first update after migration does not re-download both packages immediately."
