@@ -2,11 +2,12 @@
  * Console "AI Ask" — chat assistant for OrderAssist Tracking data.
  *
  * Prefers the server Cursor Agent CLI (logged-in account) over OpenAI.
- * Default: read-only tools (lookup SN, repairs, orders, warranty cache, stats).
- * Safe writes (explicit allow-list): refresh Microsoft warranty for one SN.
+ * Default: read tools (lookup SN, repairs, orders, warranty cache, stats).
+ * Safe writes (explicit allow-list): refresh warranty; update repair tickets /
+ * apply MS SUR/AE order numbers when the operator asks to update the case.
  * All questions + tool traces stored for future product recommendations.
  *
- * More permissions will be added selectively later — keep SAFE_WRITE_TOOLS tight.
+ * Keep SAFE_WRITE_TOOLS tight — only console-safe mutations.
  */
 const fs = require('fs');
 const path = require('path');
@@ -39,7 +40,22 @@ const RETENTION_MS = Number(process.env.OA_AI_ASK_RETENTION_MS || (183 * 24 * 60
 const CRUCIAL_RETENTION_MS = Number(process.env.OA_AI_ASK_CRUCIAL_RETENTION_MS || (730 * 24 * 60 * 60 * 1000)); // ~2 years
 
 /** Tools the model may call. Only listed write tools may mutate data. */
-const SAFE_WRITE_TOOLS = new Set(['refresh_warranty']);
+const SAFE_WRITE_TOOLS = new Set([
+  'refresh_warranty',
+  'update_repair_ticket',
+  'apply_ms_order_updates'
+]);
+
+let warrantyRepairApi = null;
+function getWarrantyRepairApi() {
+  if (warrantyRepairApi) return warrantyRepairApi;
+  try {
+    warrantyRepairApi = require('./warranty_repair.js');
+  } catch (e) {
+    warrantyRepairApi = {};
+  }
+  return warrantyRepairApi;
+}
 
 const TOOL_DEFS = [
   {
@@ -140,6 +156,64 @@ const TOOL_DEFS = [
           serialNumber: { type: 'string' }
         },
         required: ['serialNumber'],
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'update_repair_ticket',
+      description: 'SAFE WRITE: update one Repair needed ticket (MS order #, program SUR/AE, status, case, model, note). Use when the operator asks to update a case/ticket.',
+      parameters: {
+        type: 'object',
+        properties: {
+          serialNumber: { type: 'string' },
+          ticketId: { type: 'string' },
+          msOrderNumber: { type: 'string' },
+          msCaseId: { type: 'string' },
+          msProgram: {
+            type: 'string',
+            description: 'same_unit_repair | advanced_exchange'
+          },
+          status: {
+            type: 'string',
+            description: 'e.g. ms_approved_ship_same when SUR orders exist and labels are pending'
+          },
+          msDeviceModel: { type: 'string' },
+          note: { type: 'string' }
+        },
+        additionalProperties: false
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'apply_ms_order_updates',
+      description: 'SAFE WRITE: apply several Serial→MS order mappings at once (typical SUR/AE email with multiple Order details). Sets program + waiting-to-ship status unless overridden.',
+      parameters: {
+        type: 'object',
+        properties: {
+          updates: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                serialNumber: { type: 'string' },
+                msOrderNumber: { type: 'string' },
+                msDeviceModel: { type: 'string' }
+              },
+              required: ['serialNumber', 'msOrderNumber'],
+              additionalProperties: false
+            }
+          },
+          msCaseId: { type: 'string' },
+          msProgram: { type: 'string' },
+          status: { type: 'string' },
+          note: { type: 'string' }
+        },
+        required: ['updates'],
         additionalProperties: false
       }
     }
@@ -1189,6 +1263,40 @@ async function toolRefreshWarranty(args) {
   };
 }
 
+function toolUpdateRepairTicket(args) {
+  const api = getWarrantyRepairApi();
+  if (typeof api.updateRepairTicketFields !== 'function') {
+    return { ok: false, error: 'updateRepairTicketFields not available' };
+  }
+  return api.updateRepairTicketFields({
+    serialNumber: args.serialNumber,
+    ticketId: args.ticketId,
+    msOrderNumber: args.msOrderNumber,
+    msCaseId: args.msCaseId,
+    msProgram: args.msProgram,
+    status: args.status,
+    msDeviceModel: args.msDeviceModel,
+    note: args.note,
+    by: 'ai_ask'
+  });
+}
+
+function toolApplyMsOrderUpdates(args) {
+  const api = getWarrantyRepairApi();
+  if (typeof api.applyMsOrderUpdates !== 'function') {
+    return { ok: false, error: 'applyMsOrderUpdates not available' };
+  }
+  const updates = Array.isArray(args.updates) ? args.updates : [];
+  return api.applyMsOrderUpdates(updates, {
+    by: 'ai_ask',
+    msCaseId: args.msCaseId,
+    msProgram: args.msProgram || 'same_unit_repair',
+    status: args.status || 'ms_approved_ship_same',
+    note: args.note || null,
+    programLabel: /advanced/i.test(String(args.msProgram || '')) ? 'AE' : 'SUR'
+  });
+}
+
 function orderSearchTokens(query) {
   const q = String(query || '').trim();
   if (!q) return [];
@@ -1293,6 +1401,8 @@ async function executeTool(name, args) {
     case 'lookup_tracking': return toolLookupTracking(a);
     case 'get_warranty_cached': return toolWarrantyCached(a);
     case 'refresh_warranty': return toolRefreshWarranty(a);
+    case 'update_repair_ticket': return toolUpdateRepairTicket(a);
+    case 'apply_ms_order_updates': return toolApplyMsOrderUpdates(a);
     case 'search_orders': return toolSearchOrders(a);
     case 'get_changelog': return toolChangelog(a);
     case 'list_ask_insights': return toolAskInsights(a);
@@ -1345,6 +1455,64 @@ function extractTrackingFromText(text) {
   return set;
 }
 
+/**
+ * Pull Serial Number + Order number (+ optional Device model) blocks from MS emails.
+ */
+function extractMsSerialOrderPairs(text) {
+  const raw = String(text || '');
+  const pairs = [];
+  const seen = new Set();
+
+  const blockRe = /(?:Device model:\s*([^\r\n]+)\s*)?Serial Number:\s*([0-9A-Za-z]+)\s*Order number:\s*(\d{7,12})/gi;
+  let m;
+  while ((m = blockRe.exec(raw))) {
+    const sn = String(m[2] || '').trim().toUpperCase().replace(/^OF/, '0F');
+    const order = String(m[3] || '').trim();
+    const model = String(m[1] || '').trim() || null;
+    const key = `${sn}|${order}`;
+    if (!sn || !order || seen.has(key)) continue;
+    seen.add(key);
+    pairs.push({ serialNumber: sn, msOrderNumber: order, msDeviceModel: model });
+  }
+
+  // Fallback: nearby Serial … Order lines if labels vary
+  if (!pairs.length) {
+    const loose = /Serial(?:\s*Number)?\s*[:#]?\s*([0-9A-Za-z]{11,18})[\s\S]{0,120}?Order(?:\s*(?:number|no\.?|#))?\s*[:#]?\s*(\d{7,12})/gi;
+    while ((m = loose.exec(raw))) {
+      const sn = String(m[1] || '').trim().toUpperCase().replace(/^OF/, '0F');
+      const order = String(m[2] || '').trim();
+      const key = `${sn}|${order}`;
+      if (!sn || !order || seen.has(key)) continue;
+      seen.add(key);
+      pairs.push({ serialNumber: sn, msOrderNumber: order, msDeviceModel: null });
+    }
+  }
+
+  return pairs;
+}
+
+function detectMsProgramFromText(text) {
+  const t = String(text || '');
+  if (/advanced\s*exchange|\bAE\b/i.test(t)) return 'advanced_exchange';
+  if (/same\s*unit\s*repair|\bSUR\b/i.test(t)) return 'same_unit_repair';
+  return null;
+}
+
+function wantsRepairTicketWrite(text) {
+  const low = String(text || '').toLowerCase();
+  if (/update (the )?(case|ticket|tickets|orders?|console)|please update|apply (the )?(update|orders?|sur)|set (the )?(ms )?order|write (the )?order|save (the )?order|put (the )?order|fill (in )?(the )?order/.test(low)) {
+    return true;
+  }
+  // MS SUR/AE email paste + clear ask to act
+  if (extractMsSerialOrderPairs(text).length && /(please|update|apply|set|save|write|put)\b/.test(low)) {
+    return true;
+  }
+  if (/new update from microsoft/.test(low) && extractMsSerialOrderPairs(text).length) {
+    return true;
+  }
+  return false;
+}
+
 async function gatherContextForQuestion(userText, history) {
   const text = String(userText || '');
   const low = text.toLowerCase();
@@ -1393,6 +1561,40 @@ async function gatherContextForQuestion(userText, history) {
   const wantsLabels = /label|pdf|download.*ship|shipping label|print label/.test(low);
   const wantsEmails = /email|e-mail|mail thread|inbox|ms mail|what.*(said|wrote)|track emails/.test(low);
   const wantsTrace = /full trace|what happened|timeline|history for|status history/.test(low);
+  const wantsTicketWrite = SAFE_WRITE_TOOLS.has('apply_ms_order_updates') && wantsRepairTicketWrite(text);
+  const msOrderPairs = extractMsSerialOrderPairs(text);
+  const msProgramGuess = detectMsProgramFromText(text) || 'same_unit_repair';
+  const caseFromText = [...cases][0] || null;
+  for (const pair of msOrderPairs) {
+    if (pair && pair.serialNumber) serials.add(pair.serialNumber);
+    if (pair && pair.msOrderNumber) orders.add(pair.msOrderNumber);
+  }
+
+  // Apply MS SUR/AE order numbers before answering when the operator asked to update.
+  if (wantsTicketWrite && msOrderPairs.length && SAFE_WRITE_TOOLS.has('apply_ms_order_updates')) {
+    toolsUsed.push('apply_ms_order_updates');
+    const writeResult = await executeTool('apply_ms_order_updates', {
+      updates: msOrderPairs,
+      msCaseId: caseFromText || undefined,
+      msProgram: msProgramGuess,
+      status: msProgramGuess === 'advanced_exchange' ? 'ms_approved_ship_ae' : 'ms_approved_ship_same',
+      note: `AI Ask: applied MS ${msProgramGuess === 'advanced_exchange' ? 'AE' : 'SUR'} order(s) from operator paste`
+    });
+    bundles.push({
+      tool: 'apply_ms_order_updates',
+      args: { updates: msOrderPairs, msProgram: msProgramGuess },
+      result: writeResult
+    });
+    // Re-read tickets so the answer shows post-write state
+    for (const pair of msOrderPairs.slice(0, 10)) {
+      toolsUsed.push('get_repair_ticket');
+      bundles.push({
+        tool: 'get_repair_ticket',
+        args: { serialNumber: pair.serialNumber },
+        result: await executeTool('get_repair_ticket', { serialNumber: pair.serialNumber })
+      });
+    }
+  }
 
   if (wantsOverview || (!serials.size && !orders.size && !cases.size && /repair|open/.test(low))) {
     toolsUsed.push('system_overview');
@@ -1574,6 +1776,8 @@ function buildCursorPrompt(systemPrompt, history, userText, contextBundles) {
     'You are running via Cursor Agent on the OrderAssist server.',
     'Use ONLY the TOOL RESULTS below as facts. Do not invent data.',
     'Honor LEARNED MEMORY / TRAINING preferences when they do not conflict with live tool facts.',
+    'If apply_ms_order_updates / update_repair_ticket results show ok:true, those console writes already happened — report them as done.',
+    'Do not tell the operator to switch to Agent mode or update tickets manually when write tool results already succeeded.',
     'ALWAYS include clickable markdown links when tool results provide them:',
     '- Label PDFs: [filename](/api/ms-email/labels/ID)',
     '- UPS/carrier: [tracking](https://www.ups.com/track?tracknum=...)',
@@ -1726,8 +1930,11 @@ const SYSTEM_PROMPT = [
   'You are AI Ask for the OrderAssist Tracking Console (warehouse / Microsoft Surface warranty ops).',
   'Answer using the provided tool results — do not invent serials, cases, orders, tracking numbers, or warranty dates.',
   'Honor LEARNED MEMORY / TRAINING notes from operators (preferences, corrections, “always/never” rules).',
-  'Default stance: READ-ONLY. Prefer cached warranty unless the operator asked to refresh live.',
-  'Do not claim you can edit tickets, send email, delete data, or change orders — those permissions are not enabled yet.',
+  'Default stance: prefer cached warranty unless the operator asked to refresh live.',
+  'SAFE WRITES are enabled for: refresh_warranty, update_repair_ticket, apply_ms_order_updates.',
+  'When TOOL RESULTS include apply_ms_order_updates or update_repair_ticket with ok:true, report what was WRITTEN (do not say you are read-only or ask the operator to do it manually).',
+  'If the operator pasted an MS SUR/AE email and asked to update the case, confirm each serial → MS order # / status that was saved.',
+  'Do not claim you can send email to Microsoft or delete tickets — those permissions are not enabled.',
   'Be concise and practical. Use short markdown when helpful (bullets, bold labels, tables).',
   'ALWAYS add internal links from tool results: Repair needed (console:repair?ticket=…), label PDF download paths (/api/ms-email/labels/…), and carrier track URLs.',
   'When shipping labels exist, include a markdown download link for each PDF — do not only tell the user to open Repair needed.',
