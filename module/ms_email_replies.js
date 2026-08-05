@@ -2058,8 +2058,10 @@ function syncTicketNeedReplyFlag(ticketId) {
     let needs = false;
     if (latest) {
       const uid = Number(latest.uid);
+      // Only trust drafts that actually went out via SMTP (avoid false "sent" clearing the badge)
       const replied = drafts.some((d) => d
         && d.status === 'sent'
+        && (d.sentAt || d.smtpMessageId || d.smtpResponse || d.messageId)
         && Number(d.inReplyToUid) === uid
         && (
           String(d.ticketId) === String(t.id)
