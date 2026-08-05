@@ -1,0 +1,248 @@
+<!-- Fragment: AI Ask -->
+<div class="aiask-page" id="aiAskPage">
+  <aside class="aiask-sidebar">
+    <div class="aiask-sidebar-head">
+      <strong>AI Ask</strong>
+      <button type="button" class="btn" id="aiAskNew">New chat</button>
+    </div>
+    <p class="aiask-sidebar-hint">Read-only system data · safe warranty refresh when you ask</p>
+    <div class="aiask-sidebar-tabs">
+      <button type="button" class="aiask-side-tab is-active" data-session-filter="active" id="aiAskTabActive">Chats</button>
+      <button type="button" class="aiask-side-tab" data-session-filter="archived" id="aiAskTabArchived">Archived <span id="aiAskArchivedCount"></span></button>
+    </div>
+    <div id="aiAskSessionList" class="aiask-session-list"></div>
+  </aside>
+
+  <section class="aiask-main">
+    <div class="aiask-top">
+      <div>
+        <h1 id="aiAskTitle">AI Ask</h1>
+        <p class="aiask-sub" id="aiAskStatusLine">Ask about devices, repairs, orders, warranty…</p>
+      </div>
+    </div>
+
+    <div id="aiAskMessages" class="aiask-messages" aria-live="polite"></div>
+
+    <div class="aiask-composer">
+      <div class="aiask-suggestions" id="aiAskSuggestions">
+        <button type="button" class="aiask-chip" data-prompt="How many open repair tickets are there by stage?">Open repairs overview</button>
+        <button type="button" class="aiask-chip" data-prompt="Look up serial ">Lookup a serial…</button>
+        <button type="button" class="aiask-chip" data-prompt="Find repair tickets waiting on MS labels">Ship / labels queue</button>
+        <button type="button" class="aiask-chip" data-prompt="Show shipping label PDFs and MS email history for the last serial we discussed">Labels + emails</button>
+        <button type="button" class="aiask-chip" data-prompt="What have people been asking AI Ask lately?">Question insights</button>
+        <button type="button" class="aiask-chip" data-prompt="Remember that we already complete standard Surface troubleshooting before contacting MS">Save training memory</button>
+      </div>
+      <form id="aiAskForm" class="aiask-form">
+        <textarea id="aiAskInput" rows="2" placeholder="Ask anything about Tracking data…" autocomplete="off"></textarea>
+        <button type="submit" class="btn" id="aiAskSend">Send</button>
+      </form>
+      <p class="aiask-footer-note">Chats ~6 months. Answers include Repair needed / label PDF / UPS links when available. Say “remember that …” for training memory.</p>
+    </div>
+  </section>
+</div>
+
+<style>
+  /* Lock shell scroll while AI Ask is open — messages scroll inside the pane */
+  body.aiask-active {
+    overflow: hidden;
+  }
+  body.aiask-active .app-content {
+    overflow: hidden !important;
+    height: calc(100vh - 3.75rem);
+    max-height: calc(100vh - 3.75rem);
+  }
+  body.aiask-active #contentContainer {
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .aiask-page {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 0;
+    flex: 1 1 auto;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    margin: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+  }
+  @media (max-width: 860px) {
+    .aiask-page { grid-template-columns: 1fr; }
+    .aiask-sidebar { display: none; }
+    .aiask-page.is-sessions .aiask-sidebar { display: flex; }
+    .aiask-page.is-sessions .aiask-main { display: none; }
+  }
+  .aiask-sidebar {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 0.85rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    border-right: 1px solid #1e293b;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .aiask-sidebar-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    flex: 0 0 auto;
+  }
+  .aiask-sidebar-head strong { font-size: 0.95rem; }
+  .aiask-sidebar-head .btn {
+    font-size: 0.75rem; padding: 0.35rem 0.55rem;
+    background: #334155; border: none; color: #f8fafc;
+  }
+  .aiask-sidebar-hint { margin: 0; font-size: 0.72rem; color: #94a3b8; line-height: 1.35; flex: 0 0 auto; }
+  .aiask-sidebar-tabs {
+    display: flex; gap: 0.25rem; flex: 0 0 auto;
+    background: #1e293b; border-radius: 8px; padding: 0.2rem;
+  }
+  .aiask-side-tab {
+    flex: 1; border: none; background: transparent; color: #94a3b8;
+    font: inherit; font-size: 0.75rem; font-weight: 600;
+    padding: 0.35rem 0.4rem; border-radius: 6px; cursor: pointer;
+  }
+  .aiask-side-tab.is-active { background: #334155; color: #fff; }
+  .aiask-session-list {
+    overflow-y: auto; overflow-x: hidden;
+    flex: 1 1 auto; min-height: 0;
+    display: flex; flex-direction: column; gap: 0.3rem;
+    overscroll-behavior: contain;
+  }
+  .aiask-session-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.25rem;
+    align-items: stretch;
+  }
+  .aiask-session-btn {
+    text-align: left; border: none; background: transparent; color: #cbd5e1;
+    padding: 0.55rem 0.55rem; border-radius: 10px; cursor: pointer; font: inherit; font-size: 0.82rem;
+    min-width: 0;
+  }
+  .aiask-session-btn:hover, .aiask-session-btn.is-active { background: #1e293b; color: #fff; }
+  .aiask-session-meta { display: block; font-size: 0.68rem; color: #64748b; margin-top: 0.15rem; }
+  .aiask-session-actions {
+    display: flex; flex-direction: column; gap: 0.15rem; opacity: 0.35;
+    justify-content: center;
+  }
+  .aiask-session-row:hover .aiask-session-actions,
+  .aiask-session-row:focus-within .aiask-session-actions { opacity: 1; }
+  .aiask-session-action {
+    border: none; background: #1e293b; color: #cbd5e1;
+    width: 1.65rem; height: 1.65rem; border-radius: 6px;
+    cursor: pointer; font-size: 0.72rem; line-height: 1;
+    padding: 0;
+  }
+  .aiask-session-action:hover { background: #334155; color: #fff; }
+  .aiask-session-action.danger:hover { background: #7f1d1d; color: #fecaca; }
+
+  .aiask-main {
+    display: flex; flex-direction: column;
+    height: 100%; min-height: 0; overflow: hidden;
+    background:
+      radial-gradient(1200px 400px at 10% -10%, #eef2ff 0%, transparent 55%),
+      radial-gradient(900px 360px at 100% 0%, #f0fdf4 0%, transparent 50%),
+      #f8fafc;
+  }
+  .aiask-top {
+    flex: 0 0 auto;
+    padding: 1rem 1.25rem 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(8px);
+  }
+  .aiask-top h1 { margin: 0; font-size: 1.15rem; letter-spacing: -0.02em; }
+  .aiask-sub { margin: 0.25rem 0 0; color: #64748b; font-size: 0.85rem; }
+
+  .aiask-messages {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1.25rem 1.25rem 0.5rem;
+    display: flex; flex-direction: column; gap: 0.85rem;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .aiask-empty {
+    margin: auto; text-align: center; max-width: 28rem; color: #64748b; padding: 2rem 1rem;
+  }
+  .aiask-empty h2 { margin: 0 0 0.5rem; color: #0f172a; font-size: 1.35rem; letter-spacing: -0.03em; }
+  .aiask-bubble {
+    max-width: min(720px, 92%);
+    padding: 0.85rem 1rem;
+    border-radius: 16px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .aiask-bubble.user {
+    align-self: flex-end;
+    background: #1d4ed8;
+    color: #fff;
+    border-bottom-right-radius: 6px;
+  }
+  .aiask-bubble.assistant {
+    align-self: flex-start;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    color: #0f172a;
+    border-bottom-left-radius: 6px;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+  }
+  .aiask-bubble.assistant .aiask-md-h { font-weight: 700; margin: 0.35rem 0 0.15rem; }
+  .aiask-bubble.assistant strong { font-weight: 700; }
+  .aiask-bubble.assistant a {
+    color: #1d4ed8; text-decoration: underline; text-underline-offset: 2px; word-break: break-all;
+  }
+  .aiask-bubble.assistant a:hover { color: #1e3a8a; }
+  .aiask-bubble.assistant code {
+    font-size: 0.85em; background: #e2e8f0; padding: 0.05rem 0.3rem; border-radius: 4px;
+  }
+  .aiask-bubble-meta {
+    font-size: 0.7rem; color: #94a3b8; margin: 0.15rem 0 0; align-self: flex-start;
+  }
+  .aiask-bubble-meta.user-meta { align-self: flex-end; color: #93c5fd; }
+  .aiask-typing {
+    align-self: flex-start;
+    color: #64748b; font-size: 0.85rem; padding: 0.35rem 0.5rem;
+  }
+
+  .aiask-composer {
+    flex: 0 0 auto;
+    padding: 0.75rem 1.15rem 1rem;
+    border-top: 1px solid #e2e8f0;
+    background: rgba(255,255,255,0.9);
+  }
+  .aiask-suggestions {
+    display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.55rem;
+  }
+  .aiask-chip {
+    border: 1px solid #cbd5e1; background: #fff; color: #334155;
+    border-radius: 999px; padding: 0.3rem 0.7rem; font-size: 0.78rem; cursor: pointer;
+  }
+  .aiask-chip:hover { border-color: #93c5fd; background: #eff6ff; color: #1e40af; }
+  .aiask-form {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.55rem; align-items: end;
+  }
+  .aiask-form textarea {
+    width: 100%; box-sizing: border-box; resize: none;
+    border: 1px solid #cbd5e1; border-radius: 14px;
+    padding: 0.75rem 0.9rem; font: inherit; min-height: 3.2rem;
+    background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+  }
+  .aiask-form textarea:focus {
+    outline: none; border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+  }
+  .aiask-form .btn { height: 2.75rem; padding: 0 1.1rem; }
+  .aiask-footer-note { margin: 0.45rem 0 0; font-size: 0.72rem; color: #94a3b8; }
+</style>

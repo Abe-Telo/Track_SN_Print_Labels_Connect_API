@@ -1,17 +1,22 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OrderAssist Tracking</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/media/app-icon-32.png">
+  <link rel="apple-touch-icon" href="/media/app-icon-180.png">
   <link rel="stylesheet" href="/css/tokens.css">
-  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/layout.css?v=20260729icon">
   <link rel="stylesheet" href="/css/components.css">
   <link rel="stylesheet" href="/css/tables.css">
-  <link rel="stylesheet" href="/css/modals.css">
+  <link rel="stylesheet" href="/css/devices.css?v=20260729links1">
+  <link rel="stylesheet" href="/css/modals.css?v=20260729atd1">
   <link rel="stylesheet" href="/css/model.ShowDeviceDetail.css?v=20260714b">
-  <link rel="stylesheet" href="/css/model_ShowAPILocalDetails.css">
-  <script src="/js/app/shell.js?v=20260714d"></script>
+  <link rel="stylesheet" href="/css/model_ShowAPILocalDetails.css?v=20260729a">
+  <script src="/js/warranty_display.js?v=20260803exp2"></script>
+  <script src="/js/app/shell.js?v=20260805aiask1"></script>
+  <script src="/js/orders.js?v=20260729orders1"></script>
   <script type="module">
     import * as pdfjsLib from '/node_modules/pdfjs-dist/build/pdf.mjs';
     window.pdfjsLib = pdfjsLib;
@@ -24,27 +29,37 @@
 <div class="app-shell">
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-      OrderAssist
-      <span>Tracking Console</span>
+      <img class="sidebar-brand-logo" src="/media/app-icon-64.png" alt="" width="36" height="36">
+      <div class="sidebar-brand-text">
+        OrderAssist
+        <span>Tracking Console</span>
+      </div>
     </div>
 
     <nav class="sidebar-nav" aria-label="Main navigation">
+      <button type="button" class="nav-btn" data-nav="dashboard" data-action="dashboard">Dashboard</button>
       <button type="button" class="nav-btn" data-nav="AddTrackingForm" data-action="toggle">Add Tracking</button>
       <button type="button" class="nav-btn" data-nav="searchSection" data-action="toggle">Search</button>
       <button type="button" class="nav-btn" data-nav="archive" data-action="archive">All Tracking</button>
       <button type="button" class="nav-btn" data-nav="devicesTable" data-action="toggle">All Devices</button>
+      <button type="button" class="nav-btn" data-nav="repair" data-action="repair">Repair needed</button>
+      <button type="button" class="nav-btn" data-nav="aiask" data-action="aiask">AI Ask</button>
 
       <div class="nav-divider"></div>
 
-      <a class="nav-btn nav-external" href="/find_tracking.html" data-nav="shipstation">ShipStation Search</a>
-      <a class="nav-btn nav-external" href="/key.html" data-nav="keys">Product Keys</a>
+      <button type="button" class="nav-btn" data-nav="orders" data-action="orders">Orders</button>
+      <button type="button" class="nav-btn" data-nav="shipstation" data-action="shipstation">ShipStation Search</button>
+      <button type="button" class="nav-btn" data-nav="keys" data-action="keys">Product Keys</button>
       <button type="button" class="nav-btn" data-nav="scripts" data-action="scripts">Scripts &amp; Tools</button>
       <button type="button" class="nav-btn" data-nav="fail2ban" data-action="fail2ban">Security / Fail2ban</button>
 
       <div class="nav-divider"></div>
 
       <button type="button" class="nav-btn" data-nav="howto" data-action="howto">How It Works</button>
+      <button type="button" class="nav-btn" data-nav="history" data-action="history">History &amp; Changes</button>
       <button type="button" class="nav-btn" data-nav="updates" data-action="updates">Software Updates</button>
+      <button type="button" class="nav-btn" data-nav="printers" data-action="printers">Printers</button>
+      <button type="button" class="nav-btn" data-nav="mobileapp" data-action="mobileapp">Mobile App</button>
     </nav>
 
     <div class="sidebar-footer">
@@ -56,119 +71,173 @@
     <header class="topbar">
       <button type="button" class="btn-icon mobile-only" id="sidebarToggle" aria-label="Open menu">&#9776;</button>
       <h1 id="pageTitle">Tracking</h1>
+      <div class="topbar-actions">
+        <button type="button" class="btn-icon notif-bell" id="notifBell" aria-label="Notifications" title="Notifications">
+          &#128276;<span class="notif-badge" id="notifBadge" aria-hidden="true"></span>
+        </button>
+        <div class="notif-panel" id="notifPanel" role="menu" aria-label="Notification list"></div>
+      </div>
     </header>
 
     <main class="app-content" id="app-content">
 
       <div id="contentContainer"></div>
 
-      <script src="/js/model_ShowAPILocalDetails.js"></script>
-      <script src="/js/all_devices.js"></script>
+      <script src="/js/model_ShowAPILocalDetails.js?v=20260729label1"></script>
+      <script src="/js/all_devices.js?v=20260729links1"></script>
 
       <div id="devicesTable" class="hidden card">
-        <h1 id="allDevicesHeading">All Devices</h1>
-
-        <div id="filterContainer">
-          <tr>
-            <div id="updateDeviceInfoContainer">
-              <button type="button" class="btn" id="updateDeviceInfoButton">Update Device Info</button>
-            </div>
-            <div id="updateShippingStatusContainer">
-              <button type="button" class="btn btn-secondary" id="updateShippingStatusButton">Update Local Shipping Status</button>
-              <div id="loadingProgress" style="display: none;">
-                <span id="currentProgress">0</span>/<span id="totalDevices">0</span>
+       <div class="devices-shell">
+        <div class="devices-toolbar">
+          <div>
+            <h1 id="allDevicesHeading">All Devices</h1>
+            <p class="dv-muted" style="margin:0.25rem 0 0;">Product, specs, warranty, tracking, and shipping in one scannable list.</p>
+          </div>
+          <div class="devices-toolbar-actions">
+            <button type="button" class="btn" id="updateDeviceInfoButton">Update Device Info</button>
+            <button type="button" class="btn btn-secondary" id="updateShippingStatusButton">Update Shipping Status</button>
+            <button type="button" class="btn btn-secondary" id="fillWarrantyGapsButton">Fill gaps from warranty</button>
+            <div class="devices-columns-menu">
+              <button type="button" class="btn btn-secondary" id="columnsSettingsButton" aria-expanded="false">Columns</button>
+              <div class="devices-columns-panel" id="columnsSettingsPanel" hidden>
+                <div class="devices-columns-panel-head">
+                  <strong>Manage columns</strong>
+                  <span class="dv-muted">Drag headers to move Â· drag edges to resize</span>
+                </div>
+                <div id="columnsSettingsList"></div>
+                <div class="devices-columns-panel-foot">
+                  <button type="button" class="btn btn-secondary" id="columnsResetButton">Reset layout</button>
+                  <button type="button" class="btn btn-secondary" id="columnsCloseButton">Close</button>
+                </div>
               </div>
             </div>
-            <th>
-              <select id="filterActivationStatus">
-                <option value="">Windows Active</option>
-                <option value="Active">Active</option>
-                <option value="Not Active">Not Active</option>
-              </select>
-            </th>
-          </tr>
+            <div class="devices-progress" id="loadingProgress">
+              <span id="currentProgress">0</span>/<span id="totalDevices">0</span>
+            </div>
+          </div>
         </div>
 
-        <div class="table-wrap">
-          <table id="DevicesTable" class="sticky">
+        <div id="devicesMessage" class="devices-message" role="status" aria-live="polite"></div>
+
+        <div class="devices-ship-chips" id="shipStatusChips" style="display:flex;gap:0.45rem;flex-wrap:wrap;margin:0 0 0.75rem;">
+          <button type="button" class="btn btn-secondary ship-chip is-active" data-ship="">All shipping</button>
+          <button type="button" class="btn btn-secondary ship-chip" data-ship="awaiting_shipment">Ready to ship</button>
+          <button type="button" class="btn btn-secondary ship-chip" data-ship="shipped">Shipped</button>
+          <button type="button" class="btn btn-secondary ship-chip" data-ship="on_hold">On hold</button>
+          <button type="button" class="btn btn-secondary ship-chip" data-ship="awaiting_payment">Awaiting payment</button>
+        </div>
+
+        <div class="devices-filters" id="filterContainer">
+          <input type="text" id="filterSerialNumber" placeholder="Serial Number">
+          <input type="text" id="filterModel" placeholder="Model">
+          <input type="text" id="filterSku" placeholder="SKU">
+          <select id="filterWindowsVersion">
+            <option value="">All Windows</option>
+            <option value="10 Home">Windows 10 Home</option>
+            <option value="10 Pro">Windows 10 Pro</option>
+            <option value="11 Home">Windows 11 Home</option>
+            <option value="11 Pro">Windows 11 Pro</option>
+          </select>
+          <input type="text" id="filterCpu" placeholder="CPU">
+          <input type="text" id="filterRam" placeholder="RAM">
+          <input type="text" id="filterHd" placeholder="HD">
+          <input type="text" id="filterTracking" placeholder="Tracking #">
+          <select id="filterOrderstatus">
+            <option value="">All Shipping Status</option>
+            <option value="awaiting_payment">Awaiting payment</option>
+            <option value="awaiting_shipment">Ready to ship (awaiting_shipment)</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="Completed">Completed</option>
+            <option value="on_hold">On Hold</option>
+            <option value="Pending">Pending</option>
+            <option value="pending_fulfillment">Pending fulfillment</option>
+            <option value="Processing">Processing</option>
+            <option value="rejected_fulfillment">Rejected Fulfillment</option>
+            <option value="shipped">Shipped</option>
+          </select>
+          <select id="filterActivationStatus">
+            <option value="">Windows Active</option>
+            <option value="Active">Active</option>
+            <option value="Not Active">Not Active</option>
+          </select>
+          <select id="filterWarranty">
+            <option value="">All warranty</option>
+            <option value="in_warranty">In warranty</option>
+            <option value="expired">Expired</option>
+            <option value="not_checked">Not checked</option>
+          </select>
+          <select id="filterWarrantyDays" title="Filter by days until warranty expires">
+            <option value="">All warranty days</option>
+            <option value="today">Expires today</option>
+            <option value="7">Expiring in 7 days</option>
+            <option value="30">Expiring in 30 days</option>
+            <option value="60">Expiring in 60 days</option>
+            <option value="90">Expiring in 90 days</option>
+            <option value="180">Expiring in 180 days</option>
+            <option value="365">Expiring in 365 days</option>
+            <option value="expired">Already expired</option>
+            <option value="none">No expiry date</option>
+          </select>
+          <input type="text" id="filterNameCompany" placeholder="Name | Company">
+          <input type="text" id="filterPhone" placeholder="Phone">
+          <input type="text" id="filterAddress" placeholder="Address">
+          <input type="text" id="filterNotes" placeholder="Notes">
+          <input type="text" id="filterOrderNumber" placeholder="Order Number">
+          <button type="button" class="btn btn-secondary" id="clearFiltersButton" disabled>Clear filters</button>
+        </div>
+
+        <div class="table-wrap devices-table-wrap">
+          <table id="DevicesTable">
+            <colgroup></colgroup>
             <thead>
-              <tr>
-                <th>
-                  <center>Product</center>
-                  <input type="text" id="filterSerialNumber" placeholder="Serial Number">
-                  <input type="text" id="filterModel" class="small-input" placeholder="Model">
-                  <input type="text" id="filterSku" class="small-input" placeholder="SKU">
-                  <select id="filterWindowsVersion">
-                    <option value="">All Windows Model</option>
-                    <option value="10 Home">Windows 10 Home</option>
-                    <option value="10 Pro">Windows 10 Pro</option>
-                    <option value="11 Home">Windows 11 Home</option>
-                    <option value="11 Pro">Windows 11 Pro</option>
-                  </select>
-                </th>
-                <th>
-                  <center>Hardware</center>
-                  <input type="text" id="filterCpu" class="small-input" placeholder="CPU">
-                  <input type="text" id="filterRam" class="small-input" placeholder="RAM">
-                  <input type="text" id="filterHd" class="small-input" placeholder="HD">
-                </th>
-                <th>
-                  <center>Internal Tracking</center>
-                  <input type="text" id="filterTracking" placeholder="Tracking #">
-                </th>
-                <th>
-                  <center>ShipStation</center>
-                  <select id="filterOrderstatus">
-                    <option value="">All Shipping Status</option>
-                    <option value="awaiting_payment">Awaiting payment</option>
-                    <option value="awaiting_shipment">awaiting_shipment</option>
-                    <option value="cancelled">Cancelled</option>
-                    <option value="Completed">Completed</option>
-                    <option value="on_hold">On Hold</option>
-                    <option value="Procceing">Procceing</option>
-                    <option value="Pending">Pending</option>
-                    <option value="pending_fulfillment">Pending fulfillment</option>
-                    <option value="Processing">Processing</option>
-                    <option value="rejected_fulfillment">Rejected Fulfillment</option>
-                    <option value="shipped">Shipped</option>
-                  </select>
-                </th>
-                <th>
-                  <center>Customer Info</center>
-                  <input type="text" id="filterNameCompany" placeholder="Name | Company">
-                  <input type="text" id="filterPhone" class="small-input" placeholder="Phone">
-                  <input type="text" id="filterAddress" class="small-input" placeholder="Address">
-                </th>
-                <th>
-                  <center>Notes</center>
-                  <input type="text" id="filterNotes" placeholder="Filter by Notes">
-                </th>
-                <th>
-                  <center>Order Number</center>
-                  <input type="text" id="filterOrderNumber" placeholder="Filter by OrderNumber">
-                </th>
-              </tr>
+              <tr></tr>
             </thead>
             <tbody></tbody>
           </table>
         </div>
+
+        <div class="devices-pager" id="devicesPager">
+          <div class="devices-pager-info" id="devicesPagerInfo">â€”</div>
+          <div class="devices-pager-pages" id="devicesPagerPages"></div>
+          <label class="devices-pager-size">
+            Rows
+            <select id="devicesPageSize">
+              <option value="100">100</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+        </div>
+       </div>
 
         <div id="infoModal_API_Local" class="modal_API_Local">
           <div class="modal_API_Local-content">
             <span class="close_API_Local">&times;</span>
             <h2>Device Information</h2>
             <div class="tab_API_Local">
-              <button type="button" class="tablinks_API_Local" onclick="openTab(event, 'LocalData_API_Local')" id="defaultOpen_API_Local">Local Data</button>
+              <button type="button" class="tablinks_API_Local" onclick="openTab(event, 'Overview_API_Local')" id="defaultOpen_API_Local">Overview</button>
+              <button type="button" class="tablinks_API_Local" onclick="openTab(event, 'LocalData_API_Local')">Local Data</button>
+              <button type="button" class="tablinks_API_Local" onclick="openTab(event, 'WarrantyData_API_Local')">Warranty</button>
+              <button type="button" class="tablinks_API_Local" onclick="openTab(event, 'ShipStationData_API_Local')">ShipStation</button>
+              <button type="button" class="tablinks_API_Local" onclick="openTab(event, 'PrintData_API_Local')">Print</button>
               <button type="button" class="tablinks_API_Local" onclick="openTab(event, 'APIData_API_Local')">API Data</button>
               <div class="button-container_API_Local">
-                <button type="button" id="editButton">Edit Local Data</button>
+                <button type="button" id="editButton" style="display:none;">Edit Local Data</button>
                 <button type="button" id="saveButtonShowAPILocalDetails" style="display:none;">Save Local Data</button>
-                <button type="button" id="editApiButton">Edit API Data</button>
-                <button type="button" id="saveApiButton" style="display:none;">Save API Data</button>
               </div>
             </div>
-            <div id="LocalData_API_Local" class="tabcontent"></div>
-            <div id="APIData_API_Local" class="tabcontent"></div>
+            <div id="modalActionStatus" class="dv-modal-status" role="status" aria-live="polite"></div>
+            <div id="Overview_API_Local" class="tabcontent tabcontent_API_Local"></div>
+            <div id="LocalData_API_Local" class="tabcontent tabcontent_API_Local"></div>
+            <div id="WarrantyData_API_Local" class="tabcontent tabcontent_API_Local"></div>
+            <div id="ShipStationData_API_Local" class="tabcontent tabcontent_API_Local"></div>
+            <div id="PrintData_API_Local" class="tabcontent tabcontent_API_Local"></div>
+            <div id="APIData_API_Local" class="tabcontent tabcontent_API_Local">
+              <p class="dv-muted dv-api-intro">Debug view — every API OrderAssist can pull for this device. Each source loads only when you open it, through the shared rate limiter.</p>
+              <div class="dv-subtabs" id="apiSubTabs"></div>
+              <div class="dv-subtab-body" id="apiSubTabBody"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -196,7 +265,7 @@
         </form>
         <div id="log"></div>
 
-        <h2>Status Repairing — Waiting for Label</h2>
+        <h2>Status Repairing â€” Waiting for Label</h2>
         <div class="table-wrap">
           <table id="trackingTable"></table>
         </div>
@@ -228,7 +297,7 @@
             <li><strong>Order number</strong> (ShipStation / linked order)</li>
             <li><strong>Notes</strong> or <strong>SKU</strong> text</li>
           </ul>
-          <div style="margin-top:0.5rem;color:#64748b;">Partial matches work. It does <strong>not</strong> search customer name, phone, or full ShipStation API — use <em>ShipStation Search</em> for that.</div>
+          <div style="margin-top:0.5rem;color:#64748b;">Partial matches work. It does <strong>not</strong> search customer name, phone, or full ShipStation API â€” use <em>ShipStation Search</em> for that.</div>
         </div>
         <div class="search-bar">
           <input type="text" id="searchInput" placeholder="Tracking #, serial, model, order #, notes...">
@@ -244,13 +313,13 @@
   </div>
 </div>
 
-<script src="/js/showDeviceDetails.js?v=20260714h"></script>
+<script src="/js/showDeviceDetails.js?v=20260729atd1"></script>
 
-<div id="deviceDetailsModal" class="modal">
-  <div class="modal-content">
-    <span id="closeModal" class="close">&times;</span>
-    <h2>Device Details</h2>
-    <table id="modalTable" style="width: 100%; border-collapse: collapse;"></table>
+<div id="deviceDetailsModal" class="modal atd-batch-modal">
+  <div class="modal-content atd-batch-content">
+    <button type="button" id="closeModal" class="atd-batch-close" aria-label="Close">&times;</button>
+    <div id="deviceDetailsHeader" class="atd-batch-header"></div>
+    <div id="modalTable" class="atd-batch-list"></div>
   </div>
 </div>
 <div id="modalOverlay" class="modal-overlay"></div>

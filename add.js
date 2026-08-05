@@ -1,4 +1,7 @@
 const express = require('express');
+const http = require('http');
+const https = require('https');
+const httpolyglot = require('httpolyglot');
 const session = require('express-session');
 const axios = require('axios');
 const bodyParser = require('body-parser');
@@ -19,10 +22,54 @@ const multer = require('multer');
 const upload = multer();
 
 const app = express();
+
+// Dual HTTP+HTTPS on :3000 (httpolyglot). Prefer HTTPS for browsers.
+app.use((req, res, next) => {
+  // httpolyglot sets encrypted on TLS sockets
+  if (req.socket && req.socket.encrypted) {
+    Object.defineProperty(req, 'secure', { value: true, configurable: true });
+  }
+  next();
+});
+
+app.use((req, res, next) => {
+  if (req.secure) return next();
+  // Keep API / PowerShell / USB scripts on plain HTTP working.
+  // Only redirect real browser navigations (Accept includes text/html).
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const accept = String(req.headers.accept || '');
+  const wantsHtml = accept.includes('text/html');
+  if (!wantsHtml) return next();
+  const pathOnly = (req.path || req.url || '').split('?')[0];
+  const isAsset =
+    pathOnly.startsWith('/js/') ||
+    pathOnly.startsWith('/css/') ||
+    pathOnly.startsWith('/media/') ||
+    pathOnly.startsWith('/Downloads/') ||
+    pathOnly.startsWith('/html/') ||
+    /\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|map|json|zip|txt|xml|pdf)$/i.test(pathOnly);
+  if (isAsset) return next();
+  const host = String(req.headers.host || 'orderassistnow.com:3000').replace(/:80$/, ':3000');
+  const targetHost = host.includes(':') ? host : host + ':3000';
+  return res.redirect(301, 'https://' + targetHost + req.originalUrl);
+});
+
+app.use((req, res, next) => {
+  if (req.secure) {
+    res.setHeader('Strict-Transport-Security', 'max-age=86400'); // short during transition
+  }
+  next();
+});
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Stage Android shared-token migration before any /android routes register.
+// Legacy app versions remain allowed until db/android_app_auth.json enables enforcement.
+const { setupAndroidAppAuth } = require('./module/android_app_auth');
+setupAndroidAppAuth(app);
 
 const dataFilePath = 'db/trackingData.json';
 const archivedDataFilePath = 'db/archivedTrackingData.json';
@@ -30,6 +77,7 @@ const commentsFilePath = 'db/comments.json';
 const updatesFilePath = 'db/updates.json';
 
 const { atomicWriteJsonSync } = require('./module/atomic_json.js');
+const supplementalDevices = require('./module/supplemental_devices');
 
 const config = JSON.parse(fs.readFileSync('account/ShipStation.json', 'utf8'));
 // Example: Selecting ShipStation credentials
@@ -147,11 +195,20 @@ app.get('/archive', (req, res) => {
 const { AddproductKey } = require('./module/key.js');
 AddproductKey(app);
 
+const { setupProductKeys } = require('./module/product_keys');
+setupProductKeys(app); // UpgradeProKeys pool → console Product Keys page
+
 const { scriptsPage } = require('./module/scripts_page.js');
 scriptsPage(app); // /list-scripts for Scripts & Tools page
 
 const { setupFail2banDashboard } = require('./module/fail2ban_dashboard.js');
 setupFail2banDashboard(app); // authenticated /api/fail2ban/*
+
+const { setupDashboard } = require('./module/dashboard.js');
+setupDashboard(app); // authenticated /api/dashboard/*
+
+const { setupOrdersDashboard } = require('./module/orders_dashboard.js');
+setupOrdersDashboard(app); // authenticated /api/orders/* + ShipStation webhooks
 
 
 const { 
@@ -169,11 +226,51 @@ const {
     verifytracking_lastFour, 
     getdetailsby_serialnumber,
     getdetailsby_orderNumber} = require('./module/find.js');
+const { STAGES, appendDeviceHistory, appendNoteLog, inferTrackingStage } = require('./module/device_lifecycle');
 getDeviceDetails_trackingnumber(app);
 getArchivedDeviceDetails_trackingNumber(app);
 verifytracking_lastFour(app);
 getdetailsby_serialnumber(app);
 getdetailsby_orderNumber(app);
+
+// Optional Stage 2: mark device processed / in warehouse (never required to ship)
+app.post('/mark-warehouse', (req, res) => {
+    try {
+        const serialNumber = (req.body.serialNumber || '').toString().trim();
+        if (!serialNumber) {
+            return res.status(400).send('serialNumber is required');
+        }
+        const serialLower = serialNumber.toLowerCase();
+        let updated = false;
+        for (const trackingItem of global.trackingData) {
+            for (const device of (trackingItem.devices || [])) {
+                if (device.serialNumber && device.serialNumber.toLowerCase() === serialLower) {
+                    device.warehouseAt = new Date().toISOString();
+                    device.stage = STAGES.WAREHOUSE;
+                    appendDeviceHistory(device, {
+                        type: 'warehouse_processed',
+                        stage: STAGES.WAREHOUSE,
+                        trackingNumber: trackingItem.trackingNumber,
+                        source: trackingItem.source || null,
+                        vendor: trackingItem.vendor || null,
+                        note: 'Marked processed / in warehouse'
+                    });
+                    updated = true;
+                }
+            }
+        }
+        if (!updated) {
+            return res.status(404).send('Device not found in active tracking');
+        }
+        global.saveTrackingData();
+        res.send(`Device ${serialNumber} marked as warehouse/processed.`);
+    } catch (err) {
+        console.error('mark-warehouse failed', err);
+        res.status(500).send('Failed to mark warehouse stage');
+    }
+});
+
+
 
 const { 
     updatedevice_SerialNumber_NoLimit, 
@@ -242,6 +339,37 @@ getarchivedtrackingdata(app);
 const { MarkTrackingDone } = require('./module/front_end.js');
 MarkTrackingDone(app); // Done Button Function to move to archive
 
+const { setupWarrantyRepair, autoCompleteRepairOnNotesImport } = require('./module/warranty_repair');
+const { setupSoftwareUpdates } = require('./module/software_updates');
+const { setupPrinters } = require('./module/printers');
+const { setupMsLabelPrint } = require('./module/ms_label_print');
+const { setupAndroidDeviceManage } = require('./module/android_device_manage');
+const { setupAndroidShipStation } = require('./module/android_shipstation');
+const { setupMobilePwa } = require('./module/mobile_pwa');
+const shipstationClient = require('./module/shipstation_client');
+setupWarrantyRepair(app);
+setupSoftwareUpdates(app);
+setupPrinters(app);
+setupMsLabelPrint(app);
+setupAndroidDeviceManage(app);
+setupAndroidShipStation(app);
+setupMobilePwa(app);
+const { setupDeviceSingleUpdate } = require('./module/device_single_update');
+setupDeviceSingleUpdate(app);
+const { setupDeviceApiSources } = require('./module/device_api_sources');
+setupDeviceApiSources(app);
+const { setupDevicePrint } = require('./module/device_print');
+setupDevicePrint(app);
+const { setupReturnAction } = require('./module/return_action');
+setupReturnAction(app);
+const { setupMsEmailInbox } = require('./module/ms_email_inbox');
+const { setupConsoleNotifications } = require('./module/console_notifications');
+const { setupConsoleAiAsk } = require('./module/console_ai_ask');
+setupMsEmailInbox(app);
+setupConsoleNotifications(app);
+setupConsoleAiAsk(app);
+
+
 MarkTrackingDone
 
 // Deleate Functions. 
@@ -295,6 +423,27 @@ function findDeviceBySerialNumber(serialNumber) {
 }
 
 
+
+// The device object has no tracking number of its own; labels want it, so look
+// up the owning tracking entry and hand createPdf a merged copy.
+function labelDeviceContext(serialNumber, device) {
+    if (!device) return device;
+    const lists = [global.trackingData || [], global.archivedTrackingData || []];
+    for (const list of lists) {
+        for (const entry of list) {
+            const devices = entry && entry.devices ? entry.devices : [];
+            if (devices.some(d => d && d.serialNumber === serialNumber)) {
+                return {
+                    ...device,
+                    InternalTrackingNumber: device.InternalTrackingNumber || entry.trackingNumber || null,
+                    InternalTrackingDate: device.InternalTrackingDate || entry.date || null
+                };
+            }
+        }
+    }
+    return device;
+}
+
 // Endpoint to print label (PDF preview)
 app.get('/print-label/:serialNumber', (req, res) => {
     // Extracts the serial number from the URL parameter.
@@ -312,7 +461,7 @@ app.get('/print-label/:serialNumber', (req, res) => {
 
         // Calls a function createPdf, passing the device object and the response stream.
         // This function is responsible for generating the PDF and writing it to the response.
-        createPdf(device, res);
+        createPdf(labelDeviceContext(serialNumber, device), res);
     } else {
         // If the device is not found, sends a 404 error with an appropriate message.
         res.status(404).send('Device not found');
@@ -329,7 +478,7 @@ app.get('/preview-label/:serialNumber', (req, res) => {
     if (device) {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'inline; filename="' + device.serialNumber + '.pdf"');
-        createPdf(device, res);
+        createPdf(labelDeviceContext(serialNumber, device), res);
     } else {
         res.status(404).send('Device not found');
     }
@@ -670,33 +819,109 @@ app.post('/update-device-details/:serialNumber', async (req, res) => {
     let deviceFound = false;
     let isArchivedData = false;
 
+    function applyDeviceUpdate(trackingItem, archived = false) {
+        const deviceIndex = trackingItem.devices.findIndex(d => d.serialNumber && d.serialNumber.toLowerCase() === serialNumber);
+        if (deviceIndex === -1) return false;
+
+        const existing = trackingItem.devices[deviceIndex];
+        if (!Object.prototype.hasOwnProperty.call(existing, 'OrderNumber')) {
+            existing.OrderNumber = '';
+        }
+
+        const prevNotes = (existing.notes || '').toString().trim();
+        const nextNotes = (updatedData.notes == null ? prevNotes : String(updatedData.notes)).trim();
+        const prevReason = (existing.Return_Reason || '').toString().trim();
+        const nextReason = (updatedData.Return_Reason == null ? prevReason : String(updatedData.Return_Reason)).trim();
+
+        const merged = { ...existing, ...updatedData };
+        // Keep history arrays from existing device (spread may overwrite with undefined)
+        merged.deviceHistory = Array.isArray(existing.deviceHistory) ? existing.deviceHistory : [];
+        merged.noteLog = Array.isArray(existing.noteLog) ? existing.noteLog : [];
+
+        const meta = {
+            stage: inferTrackingStage(trackingItem),
+            trackingNumber: trackingItem.trackingNumber,
+            source: trackingItem.source || null,
+            vendor: trackingItem.vendor || null
+        };
+
+        // If first time we see notes and no log yet, seed previous note once
+        if (prevNotes && (!merged.noteLog.length)) {
+            appendNoteLog(merged, prevNotes, meta);
+        }
+        if (nextNotes && nextNotes !== prevNotes) {
+            appendNoteLog(merged, nextNotes, { ...meta, reason: nextReason || null });
+        } else if (nextReason && nextReason !== prevReason) {
+            appendDeviceHistory(merged, {
+                type: 'return_reason',
+                stage: STAGES.RETURN_RT,
+                trackingNumber: trackingItem.trackingNumber,
+                reason: nextReason,
+                note: nextNotes || null
+            });
+        } else {
+            appendDeviceHistory(merged, {
+                type: 'device_updated',
+                stage: meta.stage,
+                trackingNumber: trackingItem.trackingNumber,
+                orderNumber: merged.OrderNumber || merged.orderNumber || null,
+                note: nextNotes || null,
+                reason: nextReason || null
+            });
+        }
+
+        // Workstation / console notes change → auto-complete open To do repairs
+        if (nextNotes && nextNotes !== prevNotes) {
+            try {
+                const result = autoCompleteRepairOnNotesImport(serialNumber, nextNotes, 'notes_import');
+                if (result.closed) {
+                    console.log(`Auto-completed ${result.closed} To do repair(s) for ${serialNumber} after notes import`);
+                }
+            } catch (e) {
+                console.error('autoCompleteRepairOnNotesImport', e.message);
+            }
+        }
+
+        trackingItem.devices[deviceIndex] = merged;
+        console.log(`Updated in ${archived ? 'archived' : 'active'} data: Serial Number: ${serialNumber}, Tracking Number: ${trackingItem.trackingNumber}, noteLog=${(merged.noteLog || []).length}`);
+        return true;
+    }
+
     // Update in active tracking data
     global.trackingData.forEach(trackingItem => {
-        const deviceIndex = trackingItem.devices.findIndex(d => d.serialNumber.toLowerCase() === serialNumber);
-        if (deviceIndex !== -1) {
-            if (!trackingItem.devices[deviceIndex].hasOwnProperty('OrderNumber')) {
-                trackingItem.devices[deviceIndex].OrderNumber = '';
-            }
-            trackingItem.devices[deviceIndex] = { ...trackingItem.devices[deviceIndex], ...updatedData };
+        if (applyDeviceUpdate(trackingItem, false)) {
             deviceFound = true;
-            console.log(`Updated in active data: Serial Number: ${serialNumber}, Tracking Number: ${trackingItem.trackingNumber}`);
         }
     });
 
     // If not found in active, search in archived data
     if (!deviceFound) {
         global.archivedTrackingData.forEach(trackingItem => {
-            const deviceIndex = trackingItem.devices.findIndex(d => d.serialNumber.toLowerCase() === serialNumber);
-            if (deviceIndex !== -1) {
-                if (!trackingItem.devices[deviceIndex].hasOwnProperty('OrderNumber')) {
-                    trackingItem.devices[deviceIndex].OrderNumber = '';
-                }
-                trackingItem.devices[deviceIndex] = { ...trackingItem.devices[deviceIndex], ...updatedData };
+            if (applyDeviceUpdate(trackingItem, true)) {
                 deviceFound = true;
                 isArchivedData = true;
-                console.log(`Updated in archived data: Serial Number: ${serialNumber}, Tracking Number: ${trackingItem.trackingNumber}`);
             }
         });
+    }
+
+    // Devices known only through warranty/repair/return data have no tracking
+    // batch to update. Persist their editable fields in the supplemental store
+    // instead of incorrectly returning "Device not found".
+    if (!deviceFound) {
+        const supplemental = supplementalDevices.ensureFromKnownSources(serialNumber);
+        if (supplemental) {
+            const merged = { ...supplemental, ...updatedData, serialNumber: supplemental.serialNumber };
+            appendDeviceHistory(merged, {
+                type: 'device_updated',
+                stage: null,
+                trackingNumber: null,
+                orderNumber: merged.OrderNumber || merged.orderNumber || null,
+                note: merged.notes || null,
+                reason: merged.Return_Reason || null
+            }, { force: true });
+            supplementalDevices.save(merged);
+            deviceFound = true;
+        }
     }
 
     if (deviceFound) {
@@ -780,7 +1005,7 @@ app.post('/bulk-update-local-shipping-status', async (req, res) => {
     const config = JSON.parse(fs.readFileSync('account/ShipStation.json', 'utf8'));
 
     for (const orderNumber of orderNumbers) {
-        const orderResponse = await fetchOrderFromAnyApi(orderNumber, config);
+        const orderResponse = await fetchOrderFromAnyApi(orderNumber, config, { forceV1: true });
         if (orderResponse && orderResponse.orderData) {
             const orderStatus = orderResponse.orderData.orderStatus;
 
@@ -828,6 +1053,10 @@ async function fetchWarehouseDetails(warehouseId, config) {
 // Import the parsing function
 //const { parseDeviceDetailsFromName } = require('./path/to/your/parser');
 
+// Warranty is now the authoritative source for model/spec fields.
+// Set this to true only if Microsoft warranty lookups stop providing them.
+const ENABLE_SHIPSTATION_SPEC_FALLBACK = false;
+
 app.post('/bulk-update-device-info', async (req, res) => {
     const orderNumbers = req.body.orderNumbers;
     const config = JSON.parse(fs.readFileSync('account/ShipStation.json', 'utf8'));
@@ -835,13 +1064,16 @@ app.post('/bulk-update-device-info', async (req, res) => {
 
   
     for (const orderNumber of orderNumbers) {
-        const orderResponse = await fetchOrderFromAnyApi(orderNumber, config);	
+        const orderResponse = await fetchOrderFromAnyApi(orderNumber, config, { forceV1: true });	
 		//if order not found check via tracking number fetchOrderNumberByTrackingFromAnyApi
         if (orderResponse && orderResponse.orderData && orderResponse.orderData.items) {
 		    console.log("Advanced Options:", orderResponse.orderData.items); // Debugging log	
 				
             orderResponse.orderData.items.forEach(item => {
-                const { model, cpu, ram, hd, windowsVersion } = parseDeviceDetailsFromName(item.name);
+                const { model, cpu, ram, hd, windowsVersion } =
+                    ENABLE_SHIPSTATION_SPEC_FALLBACK
+                        ? parseDeviceDetailsFromName(item.name)
+                        : {};
                 const orderStatus = orderResponse.orderData.orderStatus || '';				
                 const shipDate = orderResponse.orderData.shipDate; // Extract shipDate
                 const customerNotes = orderResponse.orderData.customerNotes || ''; // Extract customer notes or default to 'None'
@@ -1103,53 +1335,22 @@ async function fetchOrderFromSpecificApi(orderNumber, org, apiemail) {
     return null; // Return null if the organization is not handled
 }
 
-// Function to search and locate Order Number from all API. 
-async function fetchOrderFromAnyApi(orderNumber, config) {
-    for (const org in config) {
-        for (const account of config[org]) {
-            // Encode API Key and Secret for Basic Auth
-            const encodedCredentials = Buffer.from(`${account.api_key}:${account.api_secret}`).toString('base64');
-			//let operationLogs = [];
-            try {
-                // Adjust the API endpoint based on the organization
-                let apiUrl = '';
-                switch (org) {
-                    case 'ShipStation':
-                        apiUrl = `https://ssapi.shipstation.com/orders?orderNumber=${orderNumber}`;
-                        break;
-                    case 'Walmart':
-                        // apiUrl = [Walmart API endpoint]
-                        break;
-                    case 'Newegg':
-                        // apiUrl = [Newegg API endpoint]
-                        break;
-                    // Add more cases for other organizations
-                }
-
-                // Fetch the order using the respective API
-                const response = await axios.get(apiUrl, {
-                    headers: {
-                        'Authorization': `Basic ${encodedCredentials}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (response.data && response.data.orders && response.data.orders.length > 0) {
-                    console.log(chalk.green(`Order number ${orderNumber} found in ${org} under account ${account.Email}.`));
-                    //operationLogs.push(`Order number ${orderNumber} found in ${org} under account ${account.Email}.`);
-                    return { orderData: response.data.orders[0], org, apiemail: account.Email };
-                }
-            } catch (error) {
-                //operationLogs.push(`Error fetching order from ${org} (${account.Email}): ${error.message}`);
-				console.error(chalk.red(`Error fetching order from ${org} (${account.Email}): ${error.message}`));
-                // Continue checking the next account
-            }
+// Function to search and locate Order Number from all API.
+// options.forceV1 keeps fine-grained orderStatus on the legacy API.
+async function fetchOrderFromAnyApi(orderNumber, config, options) {
+    try {
+        const hit = await shipstationClient.lookupByOrderNumber(orderNumber, config, options || {});
+        if (hit && hit.orderData) {
+            console.log(chalk.green(`Order number ${orderNumber} found via ${hit.apiVersion} under account ${hit.apiEmail}.`));
+            return { orderData: hit.orderData, org: hit.org, apiemail: hit.apiEmail, apiVersion: hit.apiVersion };
         }
+    } catch (error) {
+        console.error(chalk.red(`Error in ShipStation order lookup: ${error.message}`));
     }
-
     console.log(chalk.yellow(`Order number ${orderNumber} not found in any configured API.`));
-   	return null;
+    return null;
 }
+
 
 /*
 async function fetchOrderNumberByTrackingFromAnyApi(trackingNumber, config) {
@@ -1198,47 +1399,28 @@ async function fetchOrderNumberByTrackingFromAnyApi(trackingNumber, config) {
     return null;
 }
 */
-  //Get Order number by scanning the Tracking number
+//Get Order number by scanning the Tracking number (V2 first, V1 fallback)
 async function fetchOrderNumberByTrackingFromAnyApi(trackingNumber, config) {
-    for (const org in config) {
-        for (const account of config[org]) {
-            const encodedCredentials = Buffer.from(`${account.api_key}:${account.api_secret}`).toString('base64');
-            try {
-                let apiUrl = '';
-                switch (org) {
-                    case 'ShipStation':
-                        apiUrl = `https://ssapi.shipstation.com/shipments?trackingNumber=${trackingNumber}`;
-                        break;
-                    // Add cases for other organizations like Walmart, Newegg, etc.
-                }
-
-                const response = await axios.get(apiUrl, {
-                    headers: {
-                        'Authorization': `Basic ${encodedCredentials}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (response.data && response.data.shipments && response.data.shipments.length > 0) {
-                    //console.log(chalk.green(`Tracking number ${trackingNumber} found in ${org} under account ${account.Email}. Response data: ${JSON.stringify(response.data)}`));
-                    console.log(chalk.green(`Tracking number ${trackingNumber} found in ${org} under account ${account.Email}. `));
-//Response data: ${JSON.stringify(response.data)}
-                    return { 
-                        orderNumber: response.data.shipments[0].orderNumber, 
-                        org, 
-                        apiemail: account.Email, 
-                        fullResponse: response.data // Include the full response for detailed results
-                    };
-                }
-            } catch (error) {
-                console.error(chalk.red(`Error fetching order number from tracking number in ${org} (${account.Email}): ${error.message}`));
-            }
+    try {
+        const search = await shipstationClient.lookupByTracking(trackingNumber, config);
+        if (search && search.hit) {
+            const hit = search.hit;
+            console.log(chalk.green(`Tracking number ${trackingNumber} found via ${hit.apiVersion || search.usedApi} under account ${hit.apiEmail}. `));
+            return {
+                orderNumber: hit.orderNumber,
+                org: hit.org,
+                apiemail: hit.apiEmail,
+                fullResponse: hit.fullResponse,
+                apiVersion: hit.apiVersion || search.usedApi
+            };
         }
+    } catch (error) {
+        console.error(chalk.red(`Error in ShipStation tracking lookup: ${error.message}`));
     }
-
     console.log(chalk.yellow(`Tracking number ${trackingNumber} not found in any configured API.`));
     return null;
 }
+
 
 
 
@@ -1292,13 +1474,12 @@ app.post('/add-or-update-device', async (req, res) => {
 */
     try {  // Search for orderNumber with a tracking number instead. (If not found, Treat the input number as a ordernumber THis allows both to work. 
         console.log(`Attempting to fetch order number using tracking number: ${orderNumber}`);
-        const trackingResponse = await axios.get(`http://localhost:3000/get-fullResponse-by-tracking/${orderNumber}`); // Check the response
-        if (trackingResponse.data && trackingResponse.data.orderNumber) { // If Comes back with data then. 
-            console.log(`Fetched order number from tracking number: ${trackingResponse.data.orderNumber}`);
-            orderNumber = trackingResponse.data.orderNumber; // Update the orderNumber directly
+        const trackingResponse = await fetchOrderNumberByTrackingFromAnyApi(orderNumber, config);
+        if (trackingResponse && trackingResponse.orderNumber) {
+            console.log(`Fetched order number from tracking number: ${trackingResponse.orderNumber}`);
+            orderNumber = trackingResponse.orderNumber; // Update the orderNumber directly
+            operationLogs.push(`Resolved tracking ${req.body.orderNumber} → order ${orderNumber}`);
         }
-			//orderNumber: orderInfo.orderNumber,
-			//apiTrackingfullResponse: orderInfo.fullResponse.shipments[0]  // RESPONSE WOULD BE FULL 
 		
     } catch (error) {  // Else, if no data came back, Treat it the current value as a ordernumber and not a tracking number. 
         console.error(`Could not find tracking number: Treating ${orderNumber} as a order number.  `, error.message);
@@ -1579,12 +1760,16 @@ app.get('/get-fullResponse-by-tracking/:trackingNumber', async (req, res) => {
         console.log(`Order info received: ${JSON.stringify(orderInfo)}`);
 
         if (orderInfo && orderInfo.orderNumber) {
-            console.log(`Order number found: ${orderInfo.orderNumber.shipments}`);
-            res.json({ 
-			orderNumber: orderInfo.orderNumber,
-			apiTrackingfullResponse: orderInfo.fullResponse.shipments[0]
-					   });
-			//res.json({ orderNumber: orderInfo.orderNumber });
+            console.log(`Order number found: ${orderInfo.orderNumber}`);
+            const full = orderInfo.fullResponse || {};
+            const shipment = (full.shipments && full.shipments[0])
+              || full.shipment
+              || ((full.labels && full.labels[0]) || null);
+            res.json({
+              orderNumber: orderInfo.orderNumber,
+              apiTrackingfullResponse: shipment,
+              apiVersion: orderInfo.apiVersion || null
+            });
         } else {
             console.log('No order number found for the provided tracking number');
             res.status(404).send('Order number not found for the provided tracking number');
@@ -1985,14 +2170,32 @@ main(); // Run the main function
 
 
 const PORT = 3000;
-//app.listen(PORT, () => {
-//    console.log(`Server is running on port ${PORT}`);
-//});
+const SSL_DIR = process.env.TRACKING_SSL_DIR || '/etc/letsencrypt/live/orderassistnow.com';
 
+function loadSslOptions() {
+  const keyPath = path.join(SSL_DIR, 'privkey.pem');
+  const certPath = path.join(SSL_DIR, 'fullchain.pem');
+  if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
+    console.error(chalk.red('SSL certs missing at ' + SSL_DIR + ' — falling back to HTTP-only'));
+    return null;
+  }
+  return {
+    key: fs.readFileSync(keyPath),
+    cert: fs.readFileSync(certPath)
+  };
+}
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+const sslOptions = loadSslOptions();
+if (sslOptions) {
+  httpolyglot.createServer(sslOptions, app).listen(PORT, '0.0.0.0', () => {
+    console.log(`Server listening on 0.0.0.0:${PORT} (HTTP + HTTPS via httpolyglot)`);
+    console.log(`HTTPS: https://orderassistnow.com:${PORT}/`);
+  });
+} else {
+  http.createServer(app).listen(PORT, '0.0.0.0', () => {
+    console.log(`Server listening on 0.0.0.0:${PORT} (HTTP only — SSL certs unavailable)`);
+  });
+}
 			// If it exsisit show shipping status, (Reason, if status is already shipped, then we can not update in API side, This is true for ShipStation) but continue only with warnings and status of shipping.
 			// Also we will add what account API this item belongs to in the 
 			// const { serialNumber, orderNumber, model, cpu, ram, hd, windowsVersion, sku, notes, org, apiemail } = req.body;
