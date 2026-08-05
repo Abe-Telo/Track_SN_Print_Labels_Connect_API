@@ -434,7 +434,8 @@
       }),
       aiask: () => loadContent({
         scriptName: 'ai_ask.js',
-        htmlPath: `/html/ai_ask.html?v=20260805think1'contentContainer',
+        htmlPath: `/html/ai_ask.html?v=20260805think1`,
+        containerId: 'contentContainer',
         navKey: 'aiask'
       }),
       history: () => loadContent({
