@@ -73,21 +73,50 @@
     if (el) el.scrollTop = el.scrollHeight;
   }
 
+  function renderThinking(m) {
+    const steps = Array.isArray(m.thinking) ? m.thinking : [];
+    if (!steps.length && !m.writeMode && !(m.toolsUsed && m.toolsUsed.length)) return '';
+    const mode = m.writeMode === 'write' ? 'write' : 'read';
+    const modeLabel = mode === 'write' ? 'Wrote' : 'Read-only';
+    const rows = steps.length
+      ? steps.map((s) => `
+          <div class="aiask-think-step" data-kind="${escapeHtml(s.kind || 'info')}">
+            <div class="aiask-think-label">${escapeHtml(s.label || 'Step')}</div>
+            ${s.detail ? `<div class="aiask-think-detail">${escapeHtml(s.detail)}</div>` : ''}
+          </div>
+        `).join('')
+      : `<div class="aiask-think-step"><div class="aiask-think-label">Tools</div>
+          <div class="aiask-think-detail">${escapeHtml((m.toolsUsed || []).join(', ') || 'none')}</div></div>`;
+    return `
+      <details class="aiask-think">
+        <summary>
+          How AI thought
+          <span class="aiask-think-mode ${mode}">${modeLabel}</span>
+        </summary>
+        <div class="aiask-think-body">${rows}</div>
+      </details>
+    `;
+  }
+
   function renderMessages(messages) {
     const box = document.getElementById('aiAskMessages');
     if (!box) return;
     if (!messages || !messages.length) {
       box.innerHTML = `<div class="aiask-empty">
         <h2>Ask the system</h2>
-        <p>Devices, repair stages, MS cases, orders, warranty — chats are saved ~6 months. Say “remember that …” to store durable training memory.</p>
+        <p>Devices, repair stages, MS cases, orders, warranty — chats are saved ~6 months. Say “remember that …” to store durable training memory. Paste an MS update and say “update the case” when you want writes.</p>
       </div>`;
       return;
     }
     box.innerHTML = messages.map((m) => {
       const isUser = m.role === 'user';
+      const think = isUser ? '' : renderThinking(m);
       return `
-        <div class="aiask-bubble ${isUser ? 'user' : 'assistant'}">${isUser ? escapeHtml(m.content) : renderMarkdown(m.content)}</div>
-        <div class="aiask-bubble-meta ${isUser ? 'user-meta' : ''}">${escapeHtml(formatWhen(m.at))}${m.by ? ` · ${escapeHtml(m.by)}` : ''}</div>
+        <div class="aiask-turn ${isUser ? 'user' : 'assistant'}">
+          ${think}
+          <div class="aiask-bubble ${isUser ? 'user' : 'assistant'}">${isUser ? escapeHtml(m.content) : renderMarkdown(m.content)}</div>
+          <div class="aiask-bubble-meta ${isUser ? 'user-meta' : ''}">${escapeHtml(formatWhen(m.at))}${m.by ? ` · ${escapeHtml(m.by)}` : ''}${m.provider ? ` · ${escapeHtml(m.provider)}` : ''}</div>
+        </div>
       `;
     }).join('');
     scrollMessages();
@@ -311,10 +340,16 @@
       if (title && data.title) title.textContent = data.title;
       renderMessages(data.messages || []);
       if (data.memorySaved) {
-        // Soft notice in status line
         const line = document.getElementById('aiAskStatusLine');
         if (line) {
           line.textContent = `Saved to learned memory${data.memoryItem && data.memoryItem.crucial ? ' (crucial)' : ''}`;
+        }
+      } else if (data.writeMode || data.writeReason) {
+        const line = document.getElementById('aiAskStatusLine');
+        if (line) {
+          line.textContent = data.writeMode === 'write'
+            ? `Wrote to console · ${(data.writeReason || '').slice(0, 90)}`
+            : `Read-only · ${(data.writeReason || 'looked up data only').slice(0, 90)}`;
         }
       }
       await loadSessions();

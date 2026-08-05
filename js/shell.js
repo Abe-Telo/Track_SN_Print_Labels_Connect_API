@@ -12,7 +12,6 @@
     howto: 'How It Works',
     updates: 'Software Updates',
     printers: 'Printers',
-    keys: 'Product Keys',
     mobileapp: 'Mobile App',
     scripts: 'Scripts & Tools',
     fail2ban: 'Security / Fail2ban',
@@ -83,7 +82,7 @@
     if (!scriptName) return Promise.resolve();
     if (loadedScripts.has(scriptName)) return loadedScripts.get(scriptName);
 
-    const path = '/js/' + scriptName + '?v=20260803badge2';
+    const path = '/js/' + scriptName + '?v=20260803ask4';
     const promise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = path;
@@ -191,10 +190,6 @@
             && typeof window.renderPrintersPage === 'function') {
           window.renderPrintersPage();
         }
-        if (htmlPath && htmlPath.indexOf('product_keys.html') !== -1
-            && typeof window.renderProductKeysPage === 'function') {
-          window.renderProductKeysPage();
-        }
         if (htmlPath && htmlPath.indexOf('history.html') !== -1
             && typeof window.renderHistoryPage === 'function') {
           window.renderHistoryPage();
@@ -225,23 +220,6 @@
   };
 
   function restoreLastView() {
-    try {
-      const params = new URLSearchParams(window.location.search || '');
-      const nav = (params.get('nav') || '').toLowerCase();
-      if (nav === 'keys' || nav === 'product-keys' || nav === 'productkeys') {
-        loadContent({
-          scriptName: 'product_keys_page.js',
-          htmlPath: '/html/product_keys.html?v=20260803keys3',
-          containerId: 'contentContainer',
-          navKey: 'keys'
-        });
-        if (window.history && window.history.replaceState) {
-          window.history.replaceState({}, '', '/');
-        }
-        return;
-      }
-    } catch (e) { /* ignore */ }
-
     const lastContent = localStorage.getItem('lastContent');
     if (lastContent && lastContent.trim().startsWith('{')) {
       try {
@@ -295,23 +273,16 @@
         } else if (action === 'updates') {
           loadContent({
             scriptName: 'updates.js',
-            htmlPath: '/html/updates.html?v=20260803fb1',
+            htmlPath: '/html/updates.html?v=20260730su1',
             containerId: 'contentContainer',
             navKey: 'updates'
           });
         } else if (action === 'printers') {
           loadContent({
             scriptName: 'printers_page.js',
-            htmlPath: '/html/printers.html?v=20260803prt9',
+            htmlPath: '/html/printers.html?v=20260731prt8',
             containerId: 'contentContainer',
             navKey: 'printers'
-          });
-        } else if (action === 'keys') {
-          loadContent({
-            scriptName: 'product_keys_page.js',
-            htmlPath: '/html/product_keys.html?v=20260803keys3',
-            containerId: 'contentContainer',
-            navKey: 'keys'
           });
         } else if (action === 'mobileapp') {
           loadContent({
@@ -358,7 +329,7 @@
         } else if (action === 'repair') {
           loadContent({
             scriptName: 'repair_needed.js',
-            htmlPath: '/html/repair_needed.html?v=20260803badge2',
+            htmlPath: '/html/repair_needed.html?v=20260803ai1',
             containerId: 'contentContainer',
             navKey: 'repair'
           });
@@ -381,71 +352,31 @@
     });
   }
 
-  /** Navigate from notifications / changelog / AI Ask links.
-   *  Accepts: "repair", "repair?ticket=ID&serial=SN&open=email", "history?id=cl-…", etc.
-   */
-  window.navigateConsole = function navigateConsole(href, meta) {
-    const raw = String(href || '').trim();
-    const qIdx = raw.indexOf('?');
-    const key = (qIdx >= 0 ? raw.slice(0, qIdx) : raw).toLowerCase();
-    const query = qIdx >= 0 ? raw.slice(qIdx + 1) : '';
-    const params = query ? new URLSearchParams(query) : new URLSearchParams();
-
-    if (key === 'repair') {
-      try {
-        const focus = {
-          ticketId: params.get('ticket') || params.get('ticketId') || (meta && meta.ticketId) || '',
-          serialNumber: params.get('serial') || params.get('serialNumber') || (meta && meta.serialNumber) || '',
-          open: params.get('open') || (meta && meta.open) || '',
-          draftId: params.get('draft') || params.get('draftId') || (meta && meta.draftId) || '',
-          uid: params.get('uid') || (meta && meta.uid) || ''
-        };
-        if (focus.ticketId || focus.serialNumber || focus.open || focus.uid || focus.draftId) {
-          sessionStorage.setItem('oa_repair_focus', JSON.stringify(focus));
-        }
-      } catch (_) { /* ignore */ }
-    }
-    if (key === 'history') {
-      try {
-        const id = params.get('id') || params.get('changelogId') || (meta && meta.changelogId) || '';
-        if (id) sessionStorage.setItem('oa_history_focus', JSON.stringify({ id }));
-      } catch (_) { /* ignore */ }
-    }
-
-    if (meta && (meta.title || meta.body)) {
-      try {
-        sessionStorage.setItem('oa_notif_context', JSON.stringify({
-          title: meta.title || '',
-          body: meta.body || '',
-          kind: meta.kind || '',
-          at: meta.at || '',
-          href: raw
-        }));
-      } catch (_) { /* ignore */ }
-    }
-
-    const bust = '20260803badge2';
+  /** Navigate from notifications / changelog links. */
+  window.navigateConsole = function navigateConsole(href) {
+    const key = String(href || '').trim().toLowerCase();
     const map = {
       repair: () => loadContent({
         scriptName: 'repair_needed.js',
-        htmlPath: `/html/repair_needed.html?v=${bust}`,
+        htmlPath: '/html/repair_needed.html?v=20260803ai1',
         containerId: 'contentContainer',
         navKey: 'repair'
       }),
       aiask: () => loadContent({
         scriptName: 'ai_ask.js',
-        htmlPath: `/html/ai_ask.html?v=20260805think1'contentContainer',
+        htmlPath: '/html/ai_ask.html?v=20260805think1',
+        containerId: 'contentContainer',
         navKey: 'aiask'
       }),
       history: () => loadContent({
         scriptName: 'history.js',
-        htmlPath: `/html/history.html?v=${bust}`,
+        htmlPath: '/html/history.html?v=20260803hist1',
         containerId: 'contentContainer',
         navKey: 'history'
       }),
       updates: () => loadContent({
         scriptName: 'updates.js',
-        htmlPath: '/html/updates.html?v=20260803fb1',
+        htmlPath: '/html/updates.html?v=20260730su1',
         containerId: 'contentContainer',
         navKey: 'updates'
       }),
@@ -463,84 +394,19 @@
       }),
       printers: () => loadContent({
         scriptName: 'printers_page.js',
-        htmlPath: '/html/printers.html?v=20260803prt9',
+        htmlPath: '/html/printers.html?v=20260731prt8',
         containerId: 'contentContainer',
         navKey: 'printers'
-      }),
-      keys: () => loadContent({
-        scriptName: 'product_keys_page.js',
-        htmlPath: '/html/product_keys.html?v=20260803keys3',
-        containerId: 'contentContainer',
-        navKey: 'keys'
       })
     };
     if (map[key]) map[key]();
     else if (key) loadContent({
       scriptName: 'history.js',
-      htmlPath: `/html/history.html?v=${bust}`,
+      htmlPath: '/html/history.html?v=20260803hist1',
       containerId: 'contentContainer',
       navKey: 'history'
     });
-
-    setTimeout(showNotifContextBannerFromStorage, 200);
   };
-
-  function resolveNotifHref(n) {
-    if (!n) return 'history';
-    const href = String(n.href || '').trim();
-    if (href.includes('?')) return href;
-    if (n.ticketId || n.serialNumber) {
-      const params = new URLSearchParams();
-      if (n.ticketId) params.set('ticket', n.ticketId);
-      if (n.serialNumber) params.set('serial', n.serialNumber);
-      const open = n.open || (n.kind === 'new_email' ? 'email' : n.kind === 'human_needed' ? 'sheet' : 'sheet');
-      if (open) params.set('open', open);
-      if (n.draftId) params.set('draft', n.draftId);
-      if (n.uid) params.set('uid', n.uid);
-      return `repair?${params.toString()}`;
-    }
-    if (n.changelogId) return `history?id=${encodeURIComponent(n.changelogId)}`;
-    if (n.uid) return `repair?open=unmatched&uid=${encodeURIComponent(n.uid)}`;
-    return href || 'history';
-  }
-
-  function showNotifContextBannerFromStorage() {
-    let ctx = null;
-    try {
-      const raw = sessionStorage.getItem('oa_notif_context');
-      if (raw) ctx = JSON.parse(raw);
-      sessionStorage.removeItem('oa_notif_context');
-    } catch (_) {
-      try { sessionStorage.removeItem('oa_notif_context'); } catch (__) { /* ignore */ }
-    }
-    if (ctx) showNotifContextBanner(ctx);
-  }
-
-  function showNotifContextBanner(ctx) {
-    ensureNotifStyles();
-    let bar = document.getElementById('notifContextBanner');
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.id = 'notifContextBanner';
-      bar.className = 'notif-context-banner';
-      document.body.appendChild(bar);
-    }
-    bar.innerHTML = `
-      <div class="notif-context-inner">
-        <div class="notif-context-text">
-          <div class="notif-context-title">${escapeNotif(ctx.title || 'Notification')}</div>
-          <div class="notif-context-body">${escapeNotif(ctx.body || '')}</div>
-          <div class="notif-context-meta">${escapeNotif(ctx.kind || '')}${ctx.at ? ` · ${escapeNotif(formatNotifWhen(ctx.at))}` : ''}</div>
-        </div>
-        <button type="button" class="btn btn-secondary" id="notifContextDismiss">Dismiss</button>
-      </div>`;
-    bar.classList.add('is-on');
-    bar.querySelector('#notifContextDismiss')?.addEventListener('click', () => {
-      bar.classList.remove('is-on');
-    });
-    clearTimeout(showNotifContextBanner._t);
-    showNotifContextBanner._t = setTimeout(() => bar.classList.remove('is-on'), 20000);
-  }
 
   // —— Per-computer notifications (localStorage device id) ——
   function getConsoleDeviceId() {
@@ -582,19 +448,9 @@
       '.notif-empty{padding:1rem;color:#64748b;font-size:0.85rem;}',
       '.notif-toast{position:fixed;top:4.5rem;right:1rem;z-index:300;max-width:min(360px,92vw);',
       'background:#111827;color:#fff;padding:0.75rem 0.9rem;border-radius:10px;',
-      'box-shadow:0 10px 30px rgba(0,0,0,0.25);font-size:0.88rem;display:none;cursor:pointer;}',
+      'box-shadow:0 10px 30px rgba(0,0,0,0.25);font-size:0.88rem;display:none;}',
       '.notif-toast.is-on{display:block;animation:notifIn 0.25s ease;}',
-      '@keyframes notifIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}',
-      '.notif-context-banner{display:none;position:fixed;left:50%;transform:translateX(-50%);',
-      'top:4.25rem;z-index:280;width:min(640px,94vw);}',
-      '.notif-context-banner.is-on{display:block;animation:notifIn 0.2s ease;}',
-      '.notif-context-inner{display:flex;gap:0.75rem;align-items:flex-start;background:#fff7ed;',
-      'border:1px solid #fdba74;border-radius:12px;padding:0.75rem 0.9rem;',
-      'box-shadow:0 12px 36px rgba(15,23,42,0.18);}',
-      '.notif-context-text{flex:1;min-width:0;}',
-      '.notif-context-title{font-weight:700;color:#9a3412;font-size:0.92rem;}',
-      '.notif-context-body{font-size:0.82rem;color:#7c2d12;margin-top:0.25rem;white-space:pre-wrap;}',
-      '.notif-context-meta{font-size:0.72rem;color:#c2410c;margin-top:0.3rem;}'
+      '@keyframes notifIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}'
     ].join('');
     document.head.appendChild(style);
   }
@@ -624,24 +480,20 @@
         <button type="button" class="btn btn-secondary" id="notifMarkAll" style="font-size:0.75rem;padding:0.25rem 0.5rem;">Mark all read</button>
       </div>
       ${list.length ? list.map((n) => `
-        <button type="button" class="notif-item ${n.read ? '' : 'is-unread'}" data-notif-id="${escapeNotif(n.id)}" data-href="${escapeNotif(resolveNotifHref(n))}">
+        <button type="button" class="notif-item ${n.read ? '' : 'is-unread'}" data-notif-id="${n.id}" data-href="${n.href || 'history'}">
           <div class="notif-item-title">${escapeNotif(n.title || 'Update')}</div>
           <div class="notif-item-body">${escapeNotif(n.body || '')}</div>
-          <div class="notif-item-meta">${escapeNotif(n.kind || '')}${n.serialNumber ? ` · ${escapeNotif(n.serialNumber)}` : ''}${n.major ? ' · major' : ''} · ${escapeNotif(formatNotifWhen(n.at))}</div>
+          <div class="notif-item-meta">${escapeNotif(n.kind || '')}${n.major ? ' · major' : ''} · ${escapeNotif(formatNotifWhen(n.at))}</div>
         </button>
       `).join('') : '<div class="notif-empty">No notifications yet.</div>'}`;
 
     panel.querySelectorAll('[data-notif-id]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-notif-id');
-        const n = (notifCache || []).find((x) => x && String(x.id) === String(id)) || null;
-        const href = (n && resolveNotifHref(n)) || btn.getAttribute('data-href') || 'history';
+        const href = btn.getAttribute('data-href') || 'history';
         await ackNotifications([id]);
         panel.classList.remove('is-open');
-        window.navigateConsole(href, n || {
-          title: btn.querySelector('.notif-item-title')?.textContent,
-          body: btn.querySelector('.notif-item-body')?.textContent
-        });
+        window.navigateConsole(href);
       });
     });
     panel.querySelector('#notifMarkAll')?.addEventListener('click', async (e) => {
@@ -656,7 +508,7 @@
       const toastKey = 'oa_notif_toast_' + major.id;
       if (!sessionStorage.getItem(toastKey)) {
         sessionStorage.setItem(toastKey, '1');
-        showNotifToast(major);
+        showNotifToast(major.title || 'Update available');
       }
     }
   }
@@ -679,7 +531,7 @@
     }
   }
 
-  function showNotifToast(notifOrText) {
+  function showNotifToast(text) {
     let toast = document.getElementById('notifToast');
     if (!toast) {
       toast = document.createElement('div');
@@ -687,18 +539,10 @@
       toast.className = 'notif-toast';
       document.body.appendChild(toast);
     }
-    const n = (notifOrText && typeof notifOrText === 'object') ? notifOrText : null;
-    const text = n ? (n.title || 'Update available') : String(notifOrText || 'Update available');
-    toast.textContent = text + (n ? ' — click to open' : '');
+    toast.textContent = text;
     toast.classList.add('is-on');
-    toast.onclick = async () => {
-      toast.classList.remove('is-on');
-      if (!n) return;
-      await ackNotifications([n.id]);
-      window.navigateConsole(resolveNotifHref(n), n);
-    };
     clearTimeout(showNotifToast._t);
-    showNotifToast._t = setTimeout(() => toast.classList.remove('is-on'), 8000);
+    showNotifToast._t = setTimeout(() => toast.classList.remove('is-on'), 5000);
   }
 
   async function ackNotifications(ids, all) {
@@ -734,7 +578,7 @@
           const toastKey = 'oa_notif_toast_' + major.id;
           if (!sessionStorage.getItem(toastKey)) {
             sessionStorage.setItem(toastKey, '1');
-            showNotifToast(major);
+            showNotifToast(major.title || 'Update available');
           }
         }
       }
@@ -760,31 +604,27 @@
     setInterval(refreshNotifications, 60000);
   }
 
-  // Green nav badges (open repairs, order queue, print jobs, feedback, …)
-  const NAV_BADGE_KEYS = ['repair', 'orders', 'updates', 'printers', 'fail2ban'];
-
+  // Green nav badges (open repairs, order problems, new feedback, …)
   function ensureBadgeStyles() {
     if (document.getElementById('navBadgeStyles')) return;
     const style = document.createElement('style');
     style.id = 'navBadgeStyles';
     style.textContent = [
       '.nav-badge{display:inline-flex;align-items:center;justify-content:center;',
-      'min-width:1.2rem;height:1.2rem;padding:0 0.3rem;margin-left:auto;',
+      'min-width:1.2rem;height:1.2rem;padding:0 0.3rem;margin-left:0.45rem;',
       'border-radius:999px;background:#16a34a;color:#fff;font-size:0.72rem;',
       'font-weight:700;line-height:1;vertical-align:middle;}'
     ].join('');
     document.head.appendChild(style);
   }
 
-  function renderNavBadges(badges, titles) {
+  function renderNavBadges(badges) {
     ensureBadgeStyles();
-    const map = badges || {};
-    const tip = titles || {};
-    NAV_BADGE_KEYS.forEach((navKey) => {
+    Object.keys(badges || {}).forEach((navKey) => {
       const btn = document.querySelector('.nav-btn[data-nav="' + navKey + '"]');
       if (!btn) return;
       let badge = btn.querySelector('.nav-badge');
-      const count = Number(map[navKey]) || 0;
+      const count = Number(badges[navKey]) || 0;
       if (count > 0) {
         if (!badge) {
           badge = document.createElement('span');
@@ -792,11 +632,8 @@
           btn.appendChild(badge);
         }
         badge.textContent = count > 99 ? '99+' : String(count);
-        badge.title = tip[navKey] || (count + ' pending');
-        btn.title = tip[navKey] || btn.title || '';
       } else if (badge) {
         badge.remove();
-        if (tip[navKey]) btn.removeAttribute('title');
       }
     });
   }
@@ -805,7 +642,7 @@
     fetch('/api/nav-badges', { credentials: 'same-origin' })
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
-        if (data && data.ok) renderNavBadges(data.badges, data.titles);
+        if (data && data.ok) renderNavBadges(data.badges);
       })
       .catch(() => { /* console offline / not logged in */ });
   }

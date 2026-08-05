@@ -5,7 +5,7 @@
       <strong>AI Ask</strong>
       <button type="button" class="btn" id="aiAskNew">New chat</button>
     </div>
-    <p class="aiask-sidebar-hint">Read-only system data · safe warranty refresh when you ask</p>
+    <p class="aiask-sidebar-hint">Looks up Tracking data · writes only when you clearly ask (update case / refresh warranty) · expand “How AI thought” on replies</p>
     <div class="aiask-sidebar-tabs">
       <button type="button" class="aiask-side-tab is-active" data-session-filter="active" id="aiAskTabActive">Chats</button>
       <button type="button" class="aiask-side-tab" data-session-filter="archived" id="aiAskTabArchived">Archived <span id="aiAskArchivedCount"></span></button>
@@ -245,4 +245,65 @@
   }
   .aiask-form .btn { height: 2.75rem; padding: 0 1.1rem; }
   .aiask-footer-note { margin: 0.45rem 0 0; font-size: 0.72rem; color: #94a3b8; }
+
+  .aiask-turn { display: flex; flex-direction: column; gap: 0.35rem; max-width: min(720px, 92%); }
+  .aiask-turn.user { align-self: flex-end; align-items: flex-end; }
+  .aiask-turn.assistant { align-self: flex-start; align-items: flex-start; }
+  .aiask-turn .aiask-bubble { max-width: 100%; }
+  .aiask-think {
+    width: 100%;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    overflow: hidden;
+  }
+  .aiask-think > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.75rem;
+    font-weight: 650;
+    color: #475569;
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+    user-select: none;
+  }
+  .aiask-think > summary::-webkit-details-marker { display: none; }
+  .aiask-think > summary::before {
+    content: '▸';
+    color: #94a3b8;
+    font-size: 0.7rem;
+  }
+  .aiask-think[open] > summary::before { content: '▾'; }
+  .aiask-think-mode {
+    margin-left: auto;
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.65rem;
+    font-weight: 750;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .aiask-think-mode.read { background: #e2e8f0; color: #475569; }
+  .aiask-think-mode.write { background: #dcfce7; color: #166534; }
+  .aiask-think-body {
+    border-top: 1px solid #e2e8f0;
+    padding: 0.45rem 0.7rem 0.65rem;
+    display: grid;
+    gap: 0.4rem;
+  }
+  .aiask-think-step {
+    display: grid;
+    gap: 0.1rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #eef2f7;
+  }
+  .aiask-think-step[data-kind="write"] { border-color: #bbf7d0; background: #f0fdf4; }
+  .aiask-think-step[data-kind="skip"] { border-color: #fde68a; background: #fffbeb; }
+  .aiask-think-step[data-kind="decide"] { border-color: #bfdbfe; background: #eff6ff; }
+  .aiask-think-label { font-size: 0.78rem; font-weight: 650; color: #0f172a; }
+  .aiask-think-detail { font-size: 0.72rem; color: #64748b; line-height: 1.35; }
 </style>

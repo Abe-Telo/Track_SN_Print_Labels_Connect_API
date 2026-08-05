@@ -1498,19 +1498,83 @@ function detectMsProgramFromText(text) {
   return null;
 }
 
+/**
+ * Decide whether this question should mutate console data.
+ * Returns { mode: 'read'|'write', reason, allowTicketWrite, allowWarrantyRefresh }.
+ */
+function classifyWriteIntent(text) {
+  const raw = String(text || '');
+  const low = raw.toLowerCase();
+  const pairs = extractMsSerialOrderPairs(raw);
+
+  const blocked = /\b(don'?t|do not|never|stop)\s+(update|change|write|apply|save|set|edit)\b/.test(low)
+    || /\b(just looking|just checking|only looking|only checking|don'?t change|do not change)\b/.test(low)
+    || (
+      /\b(what (does|is|are|was|were)|explain|summarize|summary|status of|tell me about|how many|overview)\b/.test(low)
+      && !/\b(please\s+)?(update|apply|set|save|write|put|fill)\b/.test(low)
+    )
+    || /\b(should i|can i|do i need to|dry\s*run|without (changing|saving|writing))\b/.test(low);
+
+  const explicitTicketWrite = /\b(update|apply|set|save|write|put|fill(\s+in)?)\b.{0,40}\b(case|ticket|tickets|order number|ms order|console)\b/.test(low)
+    || /\b(please\s+)?update (the )?(case|ticket|tickets)\b/.test(low)
+    || /\bapply (the )?(update|orders?|sur|ae)\b/.test(low)
+    || /\b(set|save|write|put|fill(\s+in)?)\b.{0,20}\b(ms )?order(s| numbers?)?\b/.test(low);
+
+  const emailPasteWrite = pairs.length > 0 && (
+    /\b(please\s+)?(update|apply|set|save|write|put)\b/.test(low)
+    || /\bnew update from microsoft\b/.test(low)
+    || /\bupdate the case\b/.test(low)
+  );
+
+  const allowTicketWrite = !blocked && (explicitTicketWrite || emailPasteWrite) && (
+    pairs.length > 0
+    || /\b(case|ticket|order)\b/.test(low)
+  );
+
+  // Warranty live refresh — only when clearly requested (not "update the case")
+  const allowWarrantyRefresh = !blocked && (
+    /\b(refresh|recheck|pull|live)\b.{0,20}\bwarrant/.test(low)
+    || /\bupdate warrant/.test(low)
+    || /\bwarrant.{0,20}\b(refresh|recheck|live)\b/.test(low)
+  ) && !(/\bupdate (the )?case\b/.test(low) && pairs.length > 0);
+
+  let mode = 'read';
+  let reason = 'Question looks like a lookup — staying read-only.';
+  if (blocked) {
+    reason = 'Question sounds like check/explain only (or explicitly said not to change) — no writes.';
+  } else if (allowTicketWrite) {
+    mode = 'write';
+    reason = pairs.length
+      ? `Operator asked to update the case and pasted ${pairs.length} Serial→Order mapping(s) — applying to Repair needed.`
+      : 'Operator explicitly asked to update ticket/order fields.';
+  } else if (allowWarrantyRefresh) {
+    mode = 'write';
+    reason = 'Operator asked for a live warranty refresh.';
+  } else if (pairs.length > 0) {
+    reason = `Found ${pairs.length} Serial→Order block(s) in the paste, but no clear “update/apply/set” ask — summarizing only. Say “update the case” to write.`;
+  }
+
+  return {
+    mode,
+    reason,
+    allowTicketWrite: !!allowTicketWrite,
+    allowWarrantyRefresh: !!allowWarrantyRefresh,
+    pairCount: pairs.length,
+    pairs
+  };
+}
+
+/** @deprecated use classifyWriteIntent */
 function wantsRepairTicketWrite(text) {
-  const low = String(text || '').toLowerCase();
-  if (/update (the )?(case|ticket|tickets|orders?|console)|please update|apply (the )?(update|orders?|sur)|set (the )?(ms )?order|write (the )?order|save (the )?order|put (the )?order|fill (in )?(the )?order/.test(low)) {
-    return true;
-  }
-  // MS SUR/AE email paste + clear ask to act
-  if (extractMsSerialOrderPairs(text).length && /(please|update|apply|set|save|write|put)\b/.test(low)) {
-    return true;
-  }
-  if (/new update from microsoft/.test(low) && extractMsSerialOrderPairs(text).length) {
-    return true;
-  }
-  return false;
+  return classifyWriteIntent(text).allowTicketWrite;
+}
+
+function thinkingStep(kind, label, detail) {
+  return {
+    kind: kind || 'info',
+    label: String(label || '').slice(0, 120),
+    detail: detail != null ? String(detail).slice(0, 500) : null
+  };
 }
 
 async function gatherContextForQuestion(userText, history) {
@@ -1518,6 +1582,14 @@ async function gatherContextForQuestion(userText, history) {
   const low = text.toLowerCase();
   const toolsUsed = [];
   const bundles = [];
+  const thinking = [];
+
+  const writeIntent = classifyWriteIntent(text);
+  thinking.push(thinkingStep(
+    writeIntent.mode === 'write' ? 'write' : 'decide',
+    writeIntent.mode === 'write' ? 'Write mode' : 'Read-only mode',
+    writeIntent.reason
+  ));
 
   const histBlob = (history || [])
     .filter((m) => m && (m.role === 'user' || m.role === 'assistant'))
@@ -1557,12 +1629,12 @@ async function gatherContextForQuestion(userText, history) {
   const wantsWarranty = /warrant|expir|refresh warranty|update warranty|check warranty/.test(low);
   const wantsInsights = /people ask|what.*(asked|asking)|insights|recommendation/.test(low);
   const wantsChangelog = /changelog|history|what changed|recent change/.test(low);
-  const wantsRefresh = /refresh warranty|update warranty|live warranty|recheck warranty|pull warranty/.test(low);
+  const wantsRefresh = writeIntent.allowWarrantyRefresh;
   const wantsLabels = /label|pdf|download.*ship|shipping label|print label/.test(low);
   const wantsEmails = /email|e-mail|mail thread|inbox|ms mail|what.*(said|wrote)|track emails/.test(low);
   const wantsTrace = /full trace|what happened|timeline|history for|status history/.test(low);
-  const wantsTicketWrite = SAFE_WRITE_TOOLS.has('apply_ms_order_updates') && wantsRepairTicketWrite(text);
-  const msOrderPairs = extractMsSerialOrderPairs(text);
+  const wantsTicketWrite = SAFE_WRITE_TOOLS.has('apply_ms_order_updates') && writeIntent.allowTicketWrite;
+  const msOrderPairs = writeIntent.pairs || extractMsSerialOrderPairs(text);
   const msProgramGuess = detectMsProgramFromText(text) || 'same_unit_repair';
   const caseFromText = [...cases][0] || null;
   for (const pair of msOrderPairs) {
@@ -1570,8 +1642,24 @@ async function gatherContextForQuestion(userText, history) {
     if (pair && pair.msOrderNumber) orders.add(pair.msOrderNumber);
   }
 
-  // Apply MS SUR/AE order numbers before answering when the operator asked to update.
+  if (serials.size) {
+    thinking.push(thinkingStep('read', 'Found serials', [...serials].slice(0, 8).join(', ')));
+  }
+  if (msOrderPairs.length) {
+    thinking.push(thinkingStep(
+      'read',
+      'Parsed MS order blocks',
+      msOrderPairs.map((p) => `${p.serialNumber} → ${p.msOrderNumber}`).join('; ')
+    ));
+  }
+
+  // Apply MS SUR/AE order numbers before answering when write intent is clear.
   if (wantsTicketWrite && msOrderPairs.length && SAFE_WRITE_TOOLS.has('apply_ms_order_updates')) {
+    thinking.push(thinkingStep(
+      'write',
+      'Applying ticket updates',
+      `Program ${msProgramGuess}; status ${msProgramGuess === 'advanced_exchange' ? 'ms_approved_ship_ae' : 'ms_approved_ship_same'}`
+    ));
     toolsUsed.push('apply_ms_order_updates');
     const writeResult = await executeTool('apply_ms_order_updates', {
       updates: msOrderPairs,
@@ -1585,7 +1673,15 @@ async function gatherContextForQuestion(userText, history) {
       args: { updates: msOrderPairs, msProgram: msProgramGuess },
       result: writeResult
     });
-    // Re-read tickets so the answer shows post-write state
+    thinking.push(thinkingStep(
+      writeResult && writeResult.ok ? 'write' : 'skip',
+      writeResult && writeResult.ok
+        ? `Wrote ${writeResult.updated || 0} ticket(s)`
+        : 'Write failed',
+      writeResult && writeResult.ok
+        ? (writeResult.results || []).filter((r) => r && r.ok).map((r) => `${r.serialNumber} → ${r.after && r.after.msOrderNumber}`).join('; ')
+        : (writeResult && writeResult.error) || 'see tool result'
+    ));
     for (const pair of msOrderPairs.slice(0, 10)) {
       toolsUsed.push('get_repair_ticket');
       bundles.push({
@@ -1594,11 +1690,18 @@ async function gatherContextForQuestion(userText, history) {
         result: await executeTool('get_repair_ticket', { serialNumber: pair.serialNumber })
       });
     }
+  } else if (msOrderPairs.length && !wantsTicketWrite) {
+    thinking.push(thinkingStep(
+      'skip',
+      'Skipped writing order numbers',
+      'Paste looked like an MS update, but the question did not clearly ask to update/apply. Ask “update the case” to save.'
+    ));
   }
 
   if (wantsOverview || (!serials.size && !orders.size && !cases.size && /repair|open/.test(low))) {
     toolsUsed.push('system_overview');
     bundles.push({ tool: 'system_overview', result: await executeTool('system_overview', {}) });
+    thinking.push(thinkingStep('read', 'Loaded system overview', null));
   }
 
   for (const sn of [...serials].slice(0, 6)) {
@@ -1639,6 +1742,7 @@ async function gatherContextForQuestion(userText, history) {
       });
     }
     if (wantsRefresh && SAFE_WRITE_TOOLS.has('refresh_warranty')) {
+      thinking.push(thinkingStep('write', 'Refreshing live warranty', sn));
       toolsUsed.push('refresh_warranty');
       bundles.push({
         tool: 'refresh_warranty',
@@ -1745,7 +1849,20 @@ async function gatherContextForQuestion(userText, history) {
     bundles.push({ tool: 'system_overview', result: await executeTool('system_overview', {}) });
   }
 
-  return { toolsUsed: [...new Set(toolsUsed)], bundles };
+  if (toolsUsed.length) {
+    thinking.push(thinkingStep(
+      'read',
+      `Looked up ${[...new Set(toolsUsed)].length} tool(s)`,
+      [...new Set(toolsUsed)].join(', ')
+    ));
+  }
+
+  return {
+    toolsUsed: [...new Set(toolsUsed)],
+    bundles,
+    thinking,
+    writeIntent
+  };
 }
 
 function formatLocalAnswer(bundles) {
@@ -1777,7 +1894,8 @@ function buildCursorPrompt(systemPrompt, history, userText, contextBundles) {
     'Use ONLY the TOOL RESULTS below as facts. Do not invent data.',
     'Honor LEARNED MEMORY / TRAINING preferences when they do not conflict with live tool facts.',
     'If apply_ms_order_updates / update_repair_ticket results show ok:true, those console writes already happened — report them as done.',
-    'Do not tell the operator to switch to Agent mode or update tickets manually when write tool results already succeeded.',
+    'If there is no write tool success and WRITE INTENT mode is read, stay explanatory; suggest “update the case” only when Serial→Order blocks were found but not written.',
+    'Do not tell the operator to switch to Agent mode for ticket updates when write tools are already available.',
     'ALWAYS include clickable markdown links when tool results provide them:',
     '- Label PDFs: [filename](/api/ms-email/labels/ID)',
     '- UPS/carrier: [tracking](https://www.ups.com/track?tracknum=...)',
@@ -1931,9 +2049,9 @@ const SYSTEM_PROMPT = [
   'Answer using the provided tool results — do not invent serials, cases, orders, tracking numbers, or warranty dates.',
   'Honor LEARNED MEMORY / TRAINING notes from operators (preferences, corrections, “always/never” rules).',
   'Default stance: prefer cached warranty unless the operator asked to refresh live.',
-  'SAFE WRITES are enabled for: refresh_warranty, update_repair_ticket, apply_ms_order_updates.',
-  'When TOOL RESULTS include apply_ms_order_updates or update_repair_ticket with ok:true, report what was WRITTEN (do not say you are read-only or ask the operator to do it manually).',
-  'If the operator pasted an MS SUR/AE email and asked to update the case, confirm each serial → MS order # / status that was saved.',
+  'SAFE WRITES only when the operator clearly asks to update/apply/set ticket fields or refresh live warranty.',
+  'If writeIntent was read-only, do not claim you updated tickets — explain what you found and that they can say “update the case” to save.',
+  'When TOOL RESULTS include apply_ms_order_updates or update_repair_ticket with ok:true, report what was WRITTEN.',
   'Do not claim you can send email to Microsoft or delete tickets — those permissions are not enabled.',
   'Be concise and practical. Use short markdown when helpful (bullets, bold labels, tables).',
   'ALWAYS add internal links from tool results: Repair needed (console:repair?ticket=…), label PDF download paths (/api/ms-email/labels/…), and carrier track URLs.',
@@ -2031,6 +2149,11 @@ async function runAssistantTurn(session, userText, by) {
     });
   }
 
+  const thinking = Array.isArray(gathered.thinking) ? gathered.thinking.slice(0, 24) : [];
+  if (gathered.writeIntent && gathered.writeIntent.reason) {
+    // already in thinking[0]
+  }
+
   const providerInfo = aiProviderStatus();
   let finalText = '';
   let provider = 'none';
@@ -2063,7 +2186,7 @@ async function runAssistantTurn(session, userText, by) {
         .map((m) => ({ role: m.role, content: String(m.content || '') })),
       {
         role: 'user',
-        content: `TOOL RESULTS:\n${contextBlock}\n\nAnswer the latest operator question using only these facts (and learned memory preferences).`
+        content: `WRITE INTENT: ${JSON.stringify(gathered.writeIntent || {})}\n\nTOOL RESULTS:\n${contextBlock}\n\nAnswer the latest operator question using only these facts (and learned memory preferences).`
       }
     ];
     const result = await openaiComplete(messages);
@@ -2096,7 +2219,10 @@ async function runAssistantTurn(session, userText, by) {
     role: 'assistant',
     content: finalText,
     at: isoNow(),
-    provider
+    provider,
+    thinking,
+    writeMode: (gathered.writeIntent && gathered.writeIntent.mode) || 'read',
+    toolsUsed: gathered.toolsUsed || []
   });
 
   if (!session.title || session.title === 'New chat') {
@@ -2112,6 +2238,7 @@ async function runAssistantTurn(session, userText, by) {
     question: String(userText).slice(0, 1000),
     tools: gathered.toolsUsed,
     provider,
+    writeMode: (gathered.writeIntent && gathered.writeIntent.mode) || 'read',
     answerPreview: finalText.slice(0, 500)
   });
 
@@ -2120,6 +2247,9 @@ async function runAssistantTurn(session, userText, by) {
     sessionId: session.id,
     reply: finalText,
     toolsUsed: gathered.toolsUsed,
+    thinking,
+    writeMode: (gathered.writeIntent && gathered.writeIntent.mode) || 'read',
+    writeReason: (gathered.writeIntent && gathered.writeIntent.reason) || null,
     provider,
     title: session.title,
     memorySaved: !!(memCapture && memCapture.ok),
@@ -2134,7 +2264,11 @@ function publicMessages(session) {
       role: m.role,
       content: m.content,
       at: m.at,
-      by: m.by || null
+      by: m.by || null,
+      provider: m.provider || null,
+      thinking: Array.isArray(m.thinking) ? m.thinking : null,
+      writeMode: m.writeMode || null,
+      toolsUsed: Array.isArray(m.toolsUsed) ? m.toolsUsed : null
     }));
 }
 
