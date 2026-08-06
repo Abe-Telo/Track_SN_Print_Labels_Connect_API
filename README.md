@@ -14,6 +14,7 @@ Additional detail:
 
 - [docs/USB_RELEASE.md](./docs/USB_RELEASE.md) — how to publish core/big/bootstrap packages and `v.txt`
 - [docs/FAIL2BAN.md](./docs/FAIL2BAN.md) — SSH protection and dashboard operations
+- [docs/PRINT_AND_LABELS.md](./docs/PRINT_AND_LABELS.md) — office print agent, MS labels, specs sheet, History tab
 
 ## Stack
 

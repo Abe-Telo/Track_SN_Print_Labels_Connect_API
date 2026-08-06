@@ -1461,6 +1461,8 @@ function setupWarrantyRepair(app) {
       || (device && device.warrantyStatus)
       || null;
     const warrantyDeviceName = warranty && warranty.deviceName ? warranty.deviceName : null;
+    const warrantyStandardText = (warranty && warranty.standardWarrantyText) || null;
+    const warrantySummary = (warranty && warranty.summary) || null;
     const model = (device && (device.model || device.modelDetails))
       || warrantyDeviceName
       || null;
@@ -1521,6 +1523,8 @@ function setupWarrantyRepair(app) {
       closed: !!statusMeta.closed,
       warrantyStatus,
       warrantyExpires,
+      warrantyStandardText,
+      warrantySummary,
       warrantyDeviceName,
       model,
       cpu,
@@ -2235,6 +2239,7 @@ function setupWarrantyRepair(app) {
 
       const { buildCroppedLabelPdf, buildDetailsSheetPdf, findLabelSourcePath } = require('./ms_label_print');
       const { enqueuePrintJob, loadPrinters } = require('./printers');
+      const { collectSerialHistory } = require('./device_lifecycle');
 
       if (!findLabelSourcePath(labelId)) {
         return res.status(404).json({ error: 'MS shipping label PDF not found' });
@@ -2283,7 +2288,43 @@ function setupWarrantyRepair(app) {
       const labels = Array.isArray(enriched.msShippingLabels) ? enriched.msShippingLabels : [];
       const labelMeta = labels.find((lab) => lab && lab.id === labelId) || { id: labelId };
 
-      const needLabelPdf = mode !== 'sheet';
+      // Attach office / customer ownership timeline for the 1-page specs sheet.
+      try {
+        const serialForHist = enriched.serialNumber || serialNumber || null;
+        if (serialForHist) {
+          enriched.lifecycle = collectSerialHistory(
+            serialForHist,
+            global.trackingData,
+            global.archivedTrackingData
+          );
+        }
+      } catch (histErr) {
+        console.warn('print-ms-label lifecycle', histErr && histErr.message);
+        enriched.lifecycle = { cycles: [], events: [] };
+      }
+
+      // Prefer ISO expiresOn for the sheet date line when cache has both.
+      try {
+        const cache = loadJson(WARRANTY_CACHE_PATH, {}) || {};
+        const wKey = serialKey(enriched.serialNumber || serialNumber);
+        const w = (wKey && (cache[wKey] || cache[enriched.serialNumber] || cache[serialNumber])) || null;
+        if (w) {
+          if (w.expiresOn) enriched.warrantyExpires = w.expiresOn;
+          if (w.status) enriched.warrantyStatus = w.status;
+          if (w.standardWarrantyText) enriched.warrantyStandardText = w.standardWarrantyText;
+          if (w.summary) enriched.warrantySummary = w.summary;
+          if (w.deviceName && !enriched.warrantyDeviceName) enriched.warrantyDeviceName = w.deviceName;
+          if (w.checkedAt) enriched.warrantyCheckedAt = w.checkedAt;
+          if (w.deviceName && (isBlankField(enriched.cpu) || isBlankField(enriched.ram) || isBlankField(enriched.hd))) {
+            const hw = parseWarrantyHardware(w.deviceName);
+            if (isBlankField(enriched.cpu) && hw.cpuToken) enriched.cpu = hw.cpuToken;
+            if (isBlankField(enriched.ram) && hw.ram != null) enriched.ram = hw.ram;
+            if (isBlankField(enriched.hd) && hw.hd != null) enriched.hd = hw.hd;
+          }
+        }
+      } catch (_) { /* ignore */ }
+
+      const needLabelPdf = mode !== 'sheet' && mode !== 'view-sheet';
       const needSheetPdf = mode !== 'label';
       const cropped = needLabelPdf ? await buildCroppedLabelPdf(labelId) : null;
       const sheet = needSheetPdf ? await buildDetailsSheetPdf(enriched, labelMeta) : null;
@@ -2312,12 +2353,14 @@ function setupWarrantyRepair(app) {
         }
       };
 
-      if (mode === 'prepare') {
+      if (mode === 'prepare' || mode === 'view-sheet') {
         return res.json({
           ...payloadBase,
           prepared: true,
           queued: false,
-          message: 'PDFs ready — open or download; printers can be set up later',
+          message: mode === 'view-sheet'
+            ? 'Specs sheet ready'
+            : 'PDFs ready — open or download; printers can be set up later',
           warnings: []
         });
       }
@@ -2362,6 +2405,24 @@ function setupWarrantyRepair(app) {
         warnings.push(sheetJob.error || 'Office sheet printer not ready');
       }
 
+      const cooldownHit = (labelJob && labelJob.cooldown) || (sheetJob && sheetJob.cooldown);
+      const retryAfterSec = Math.max(
+        Number(labelJob && labelJob.retryAfterSec) || 0,
+        Number(sheetJob && sheetJob.retryAfterSec) || 0,
+        15
+      );
+
+      if (cooldownHit && !queued.length) {
+        return res.status(429).json({
+          ok: false,
+          cooldown: true,
+          retryAfterSec,
+          error: labelJob.error || sheetJob.error || `Print already queued — wait ${retryAfterSec}s`,
+          labelPdf: payloadBase.labelPdf,
+          sheetPdf: payloadBase.sheetPdf
+        });
+      }
+
       // Soft-fail: PDFs are still usable when the agent PC / printers are not installed yet.
       res.json({
         ...payloadBase,
@@ -2371,7 +2432,8 @@ function setupWarrantyRepair(app) {
           ? `Queued: ${names}`
           : 'PDFs ready — printer not configured on this PC yet (use View / Download for now)',
         warnings,
-        jobs: queued
+        jobs: queued,
+        cooldownSec: 15
       });
     } catch (e) {
       console.error('/api/repair-needed/print-ms-label', e);

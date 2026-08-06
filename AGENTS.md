@@ -193,3 +193,17 @@ curl -s http://localhost:3000/list-scripts | head -c 500
 ---
 
 *Last updated: 2026-07-14 (release 1.0.12, dual-package USB updates, GS v5.1 confirmed)*
+
+## Printing, MS labels & History tab
+
+See **[docs/PRINT_AND_LABELS.md](./docs/PRINT_AND_LABELS.md)**.
+
+Do not remove:
+
+- Device modal History tab / Overview timeline link (`History_API_Local` in `html/index.html`)
+- Repair Needed View specs / print cooldown
+- `Downloads/OrderAssistPrint/` agent kit (Sumatra must run from local cache, not only from H:)
+- Specs sheet builder in `module/ms_label_print.js`
+
+Office agent share is typically `H:\Printer\OrderAssistPrint`. Run the agent on the office PC on the printer LAN.
+

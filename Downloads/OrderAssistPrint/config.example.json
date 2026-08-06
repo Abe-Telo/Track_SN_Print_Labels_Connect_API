@@ -1,0 +1,5 @@
+{
+  "BaseUrl": "https://orderassistnow.com:3000",
+  "PollSeconds": 3,
+  "DefaultPrinter": ""
+}
