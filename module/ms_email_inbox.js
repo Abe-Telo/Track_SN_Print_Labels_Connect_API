@@ -773,21 +773,22 @@ function parseLabelFilename(filename) {
 }
 
 /**
- * Fill missing SN/order/TN from the label PDF itself (OCR).
- * MS letter PDFs are vector art — filename often has order+SN but not UPS TN.
+ * Fill SN/order/TN from the return-label PDF (OCR).
+ * The PDF is the source of truth for outbound-to-MS ids when OCR finds them —
+ * filename often has order+SN but not the UPS TN; email body often lacks the TN.
  */
 function enrichLabelFromPdfContent(lab, fullPath) {
   if (!lab) return lab;
-  // Always OCR when tracking is missing (filename rarely includes the 1Z).
-  if (lab.serialNumber && lab.orderNumber && lab.trackingNumber) return lab;
   if (!labelPrintHelpers || typeof labelPrintHelpers.extractShippingLabelIds !== 'function') {
     return lab;
   }
+  // Skip only when we already OCRed a complete set
+  if (lab.serialNumber && lab.orderNumber && lab.trackingNumber && lab.ocrSource) return lab;
   try {
     const ocr = labelPrintHelpers.extractShippingLabelIds(fullPath);
-    if (!lab.orderNumber && ocr.order) lab.orderNumber = ocr.order;
-    if (!lab.serialNumber && ocr.serial) lab.serialNumber = ocr.serial;
-    if (!lab.trackingNumber && ocr.tracking) lab.trackingNumber = ocr.tracking;
+    if (ocr.tracking) lab.trackingNumber = String(ocr.tracking).toUpperCase();
+    if (ocr.order) lab.orderNumber = String(ocr.order);
+    if (ocr.serial) lab.serialNumber = String(ocr.serial).toUpperCase();
     lab.ocrScore = ocr.score || 0;
     lab.ocrSource = ocr.source || null;
   } catch (e) {
@@ -865,10 +866,8 @@ function mergeLabelFieldsIntoParsed(fields) {
       const sn = String(lab.serialNumber).toUpperCase();
       const existing = fields.devices.find((d) => String(d.serialNumber || '').toUpperCase() === sn);
       if (existing) {
-        if (!existing.orderNumber) existing.orderNumber = lab.orderNumber;
-        if (!existing.outboundTracking && lab.trackingNumber) {
-          existing.outboundTracking = lab.trackingNumber;
-        }
+        if (lab.orderNumber) existing.orderNumber = lab.orderNumber;
+        if (lab.trackingNumber) existing.outboundTracking = lab.trackingNumber;
       } else {
         fields.devices.push({
           serialNumber: sn,
@@ -951,7 +950,16 @@ function mergeLabelsOntoTicket(ticket, labels, changes) {
   if (!Array.isArray(ticket.msShippingLabels)) ticket.msShippingLabels = [];
   for (const lab of labels) {
     const sameName = (x) => String(x.filename || '').toLowerCase() === String(lab.filename || '').toLowerCase();
-    if (ticket.msShippingLabels.some((x) => x.id === lab.id || sameName(x))) continue;
+    const existing = ticket.msShippingLabels.find((x) => x.id === lab.id || sameName(x));
+    if (existing) {
+      // Prefer latest OCR / label PDF ids over stale empty ticket rows
+      if (lab.serialNumber) existing.serialNumber = lab.serialNumber;
+      if (lab.orderNumber) existing.orderNumber = lab.orderNumber;
+      if (lab.trackingNumber) existing.trackingNumber = lab.trackingNumber;
+      if (lab.ocrSource) existing.ocrSource = lab.ocrSource;
+      if (lab.ocrScore != null) existing.ocrScore = lab.ocrScore;
+      continue;
+    }
     ticket.msShippingLabels.push({
       id: lab.id,
       filename: lab.filename,
@@ -959,9 +967,53 @@ function mergeLabelsOntoTicket(ticket, labels, changes) {
       uid: lab.uid,
       size: lab.size,
       at: lab.at,
-      downloadPath: lab.downloadPath
+      downloadPath: lab.downloadPath,
+      // Keep SN/order/TN so UI can show labels per device
+      serialNumber: lab.serialNumber || null,
+      orderNumber: lab.orderNumber || null,
+      trackingNumber: lab.trackingNumber || null,
+      ocrSource: lab.ocrSource || null,
+      ocrScore: lab.ocrScore != null ? lab.ocrScore : null
     });
     changes.push(`label=${lab.filename}`);
+  }
+}
+
+/**
+ * After labels are on the ticket, prefer return-label PDF ids for this device.
+ * Case id still comes from email (TrackingID) — labels do not carry case numbers.
+ */
+function syncTicketIdsFromReturnLabel(ticket, changes) {
+  if (!ticket) return;
+  const sn = String(ticket.serialNumber || '').trim().toUpperCase();
+  const labels = Array.isArray(ticket.msShippingLabels) ? ticket.msShippingLabels : [];
+  if (!labels.length) return;
+
+  const match = labels.find((l) => {
+    const labSn = String(l.serialNumber || '').trim().toUpperCase();
+    return labSn && sn && labSn === sn && (l.trackingNumber || l.orderNumber);
+  }) || null;
+  if (!match) return;
+
+  if (match.trackingNumber) {
+    const tn = String(match.trackingNumber).toUpperCase();
+    if (ticket.outboundTracking !== tn) {
+      ticket.outboundTracking = tn;
+      changes.push(`outbound(label)=${tn}`);
+    }
+    if (ticket.msReturnLabelTracking !== tn) {
+      ticket.msReturnLabelTracking = tn;
+    }
+  }
+  if (match.orderNumber) {
+    const ord = String(match.orderNumber);
+    if (!ticket.msOrderNumber) {
+      ticket.msOrderNumber = ord;
+      changes.push(`order(label)=${ord}`);
+    } else if (String(ticket.msOrderNumber) !== ord) {
+      changes.push(`order(label) ${ticket.msOrderNumber}→${ord}`);
+      ticket.msOrderNumber = ord;
+    }
   }
 }
 
@@ -1498,9 +1550,40 @@ function applyFieldsToTicket(t, parsed, meta, now, opts) {
   }
 
   if (allowDeviceFields) {
+    // Return-label PDFs first (SN / order / outbound TN), then email body.
+    if (parsed.labels && parsed.labels.length) {
+      mergeLabelsOntoTicket(t, parsed.labels, changes);
+      syncTicketIdsFromReturnLabel(t, changes);
+      if (!parsed.suggestStatus && (/label|return your device/i.test(meta.subject || '') || parsed.labels.length)) {
+        parsed.suggestStatus = 'ms_approved_ship_same';
+        if (!parsed.program) parsed.program = 'same_unit_repair';
+      }
+    }
+
+    const labelOrderForSn = (() => {
+      const sn = String(t.serialNumber || '').trim().toUpperCase();
+      const lab = (t.msShippingLabels || []).find((l) => (
+        String(l.serialNumber || '').trim().toUpperCase() === sn && l.orderNumber
+      ));
+      return lab ? String(lab.orderNumber) : null;
+    })();
+    const labelOutboundForSn = (() => {
+      const sn = String(t.serialNumber || '').trim().toUpperCase();
+      const lab = (t.msShippingLabels || []).find((l) => (
+        String(l.serialNumber || '').trim().toUpperCase() === sn && l.trackingNumber
+      ));
+      return lab ? String(lab.trackingNumber).toUpperCase() : null;
+    })();
+
     if (parsed.orders && parsed.orders[0]) {
       const nextOrder = String(parsed.orders[0]);
-      if (!t.msOrderNumber) {
+      if (labelOrderForSn && labelOrderForSn !== nextOrder) {
+        // Keep return-label order for this SN; do not let unrelated email orders overwrite it
+        if (!t.msOrderNumber) {
+          t.msOrderNumber = labelOrderForSn;
+          changes.push(`order(label)=${labelOrderForSn}`);
+        }
+      } else if (!t.msOrderNumber) {
         t.msOrderNumber = nextOrder;
         changes.push(`order=${nextOrder}`);
       } else if (String(t.msOrderNumber) !== nextOrder && (parsed.orders || []).length === 1) {
@@ -1528,10 +1611,10 @@ function applyFieldsToTicket(t, parsed, meta, now, opts) {
       changes.push(`inbound=${legacyTracking[0]}`);
     }
 
-    const outTn = outboundList[0] || null;
+    const outTn = labelOutboundForSn || outboundList[0] || null;
     if (outTn && t.outboundTracking !== outTn) {
       t.outboundTracking = outTn;
-      changes.push(`outbound=${outTn}`);
+      changes.push(labelOutboundForSn ? `outbound(label)=${outTn}` : `outbound=${outTn}`);
     }
     if (outTn) {
       if (!t.msReturnLabelTracking || t.msReturnLabelTracking !== outTn) {
@@ -1570,13 +1653,6 @@ function applyFieldsToTicket(t, parsed, meta, now, opts) {
     if (parsed.model && !t.msDeviceModel) {
       t.msDeviceModel = parsed.model;
       changes.push(`model=${parsed.model}`);
-    }
-    if (parsed.labels && parsed.labels.length) {
-      mergeLabelsOntoTicket(t, parsed.labels, changes);
-      if (!parsed.suggestStatus && (/label|return your device/i.test(meta.subject || '') || parsed.labels.length)) {
-        parsed.suggestStatus = 'ms_approved_ship_same';
-        if (!parsed.program) parsed.program = 'same_unit_repair';
-      }
     }
   }
 
@@ -3185,9 +3261,16 @@ function setupMsEmailInbox(app) {
     ensureDirs();
     const id = String(req.params.id || '').replace(/[^\w\-]/g, '');
     if (!id) return res.status(400).json({ error: 'Missing label id' });
-    const files = fs.readdirSync(LABELS_DIR).filter((f) => f.startsWith(`${id}_`) || f === `${id}.pdf`);
+    // Only real PDFs — never serve .ocr.json / .pdf.ocr.pdf sidecars (longer names used to win the sort).
+    const files = fs.readdirSync(LABELS_DIR).filter((f) => {
+      const lower = String(f).toLowerCase();
+      if (!lower.endsWith('.pdf')) return false;
+      if (lower.includes('.ocr.')) return false;
+      return f.startsWith(`${id}_`) || f === `${id}.pdf`;
+    });
     if (!files.length) return res.status(404).json({ error: 'Label not found' });
-    const file = files.sort((a, b) => b.length - a.length)[0];
+    // Prefer the storedName-style file (id_original.pdf); shortest matching .pdf is usually correct
+    const file = files.sort((a, b) => a.length - b.length)[0];
     const full = path.join(LABELS_DIR, file);
     const downloadName = file.replace(new RegExp(`^${id}_`), '') || 'ShippingLabel.pdf';
     res.setHeader('Content-Type', 'application/pdf');

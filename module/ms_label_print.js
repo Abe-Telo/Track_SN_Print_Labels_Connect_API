@@ -713,9 +713,14 @@ function parseLabelOcrText(text) {
       if (!out.serial) out.score += 4;
     }
   }
-  m = blob.match(/TRACKING\s*#?\s*[:.]?\s*(1Z[\sA-Z0-9]{16,24})/i);
+  // UPS labels often print "1Z W85 97X 84 2231 9826" with spaces.
+  // Do not let [\s] eat following lines (BILLING/DESC) or the /^1Z…{16}$/ check fails.
+  m = blob.match(/TRACKING\s*#?\s*[:.]?\s*(1Z[^\n\r]{10,40})/i)
+    || blob.match(/\b(1Z(?:[ \t\-]*[A-Z0-9]){16})\b/i);
   if (m) {
-    const tn = String(m[1]).replace(/\s+/g, '').toUpperCase();
+    let tn = String(m[1]).replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    // Common OCR: letter O in place of zero inside the TN body
+    if (tn.length > 18 && tn.startsWith('1Z')) tn = tn.slice(0, 18);
     if (/^1Z[A-Z0-9]{16}$/.test(tn)) {
       out.tracking = tn;
       out.score += 10;

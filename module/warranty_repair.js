@@ -475,7 +475,19 @@ function normalizeRepairTicket(row) {
         uid: l.uid != null ? Number(l.uid) : null,
         size: l.size != null ? Number(l.size) : null,
         at: cleanOptional(l.at),
-        downloadPath: cleanOptional(l.downloadPath)
+        downloadPath: cleanOptional(l.downloadPath),
+        // OCR / filename ids from the MS return-label PDF (outbound to MS)
+        serialNumber: cleanOptional(l.serialNumber)
+          ? String(l.serialNumber).trim().toUpperCase()
+          : null,
+        orderNumber: cleanOptional(l.orderNumber),
+        trackingNumber: cleanOptional(l.trackingNumber)
+          ? String(l.trackingNumber).trim().toUpperCase()
+          : null,
+        ocrSource: cleanOptional(l.ocrSource),
+        ocrScore: l.ocrScore != null && Number.isFinite(Number(l.ocrScore))
+          ? Number(l.ocrScore)
+          : null
       }))
       : [],
     msEmailEvents: Array.isArray(raw.msEmailEvents)

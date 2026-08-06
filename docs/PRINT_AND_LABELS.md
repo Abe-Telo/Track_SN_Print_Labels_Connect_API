@@ -128,3 +128,10 @@ If that link “does nothing”, confirm both the button and the panel exist in 
 | `Downloads/OrderAssistPrint/` | Portable Windows agent kit |
 
 `db/` and `account/` stay **out of git** (credentials + live data).
+
+## Return shipping label = source of truth (outbound)
+
+For **same-unit repair**, Microsoft’s return-label PDF includes **Order**, **SN**, and **UPS tracking** (outbound: you → MS).
+Prefer OCR/`extractShippingLabelIds` from that PDF over email-body parsing when filling `msOrderNumber`, `outboundTracking`, and label metadata.
+**Case ID is not on the label** — it still comes from email `TrackingID` / case fields.
+Inbound tracking (MS → you) comes from “service order has been shipped/delivered” emails, not the return label.
