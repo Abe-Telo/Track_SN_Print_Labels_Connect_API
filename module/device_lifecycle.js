@@ -431,9 +431,65 @@ function collectSerialHistory(serialNumber, trackingData, archivedTrackingData) 
       });
     });
   });
+
+  // MS emails use emailDate (when MS sent mail), not when we processed/imported them.
+  for (const ev of collectMsRepairEmailEvents(serialNumber)) {
+    allEvents.push({
+      cycle: items.length || 1,
+      stage: ev.stage || 'microsoft',
+      inboundSource: null,
+      vendor: 'Microsoft',
+      ...ev
+    });
+  }
+
   allEvents.sort((a, b) => (Date.parse(a.at || 0) || 0) - (Date.parse(b.at || 0) || 0));
 
   return { cycles: items, events: allEvents };
+}
+
+/**
+ * Pull MS ↔ warehouse email milestones for this SN from repair tickets.
+ * Prefer emailDate so History shows when MS actually mailed, not import time.
+ */
+function collectMsRepairEmailEvents(serialNumber) {
+  const sn = String(serialNumber || '').trim().toUpperCase();
+  if (!sn) return [];
+  const events = [];
+  const seen = new Set();
+  try {
+    const repairPath = path.join(__dirname, '../db/repair_needed.json');
+    if (!fs.existsSync(repairPath)) return [];
+    const log = JSON.parse(fs.readFileSync(repairPath, 'utf8'));
+    for (const t of (Array.isArray(log) ? log : [])) {
+      if (!t || String(t.serialNumber || '').trim().toUpperCase() !== sn) continue;
+      for (const e of (Array.isArray(t.msEmailEvents) ? t.msEmailEvents : [])) {
+        if (!e) continue;
+        const at = e.emailDate || e.at;
+        if (!at) continue;
+        const subject = String(e.subject || '').slice(0, 300);
+        const key = `${e.uid || ''}|${at}|${subject}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        events.push({
+          at,
+          type: 'ms_email',
+          stage: 'microsoft',
+          trackingNumber: t.outboundTracking || t.inboundTracking || null,
+          orderNumber: t.msOrderNumber || null,
+          note: subject || 'MS email',
+          reason: Array.isArray(e.changes) && e.changes.length
+            ? e.changes.map((c) => String(c)).slice(0, 8).join('; ')
+            : (t.msCaseId ? `case ${t.msCaseId}` : null),
+          source: 'ms_email',
+          vendor: 'Microsoft'
+        });
+      }
+    }
+  } catch (_) {
+    // History should still render without repair tickets.
+  }
+  return events;
 }
 
 module.exports = {
@@ -449,6 +505,7 @@ module.exports = {
   getReturnVisits,
   buildTrackingHistoryItem,
   collectSerialHistory,
+  collectMsRepairEmailEvents,
   labelMessagesToText,
   resolveShipStationNoteFields
 };

@@ -504,6 +504,12 @@ const HISTORY_EVENT_META_API_Local = {
     repair_status: { label: 'Repair status updated', tone: 'info' },
     repair_resolved: { label: 'Repair resolved', tone: 'ok' },
     warranty_backfill: { label: 'Specs filled from Microsoft warranty', tone: 'info' },
+    ms_email: { label: 'MS email', tone: 'info' },
+    ms_order_created: { label: 'MS service order created', tone: 'info' },
+    ms_return_label: { label: 'MS return label (outbound to MS)', tone: 'warn' },
+    ms_inbound_shipped: { label: 'MS shipped unit back (inbound)', tone: 'info' },
+    ms_inbound_delivered: { label: 'MS inbound delivered (UPS)', tone: 'ok' },
+    ms_case: { label: 'MS support case update', tone: 'info' },
     order_refresh: { label: 'Order data refreshed from ShipStation', tone: 'info' }
 };
 
