@@ -17,7 +17,7 @@
     "express": "^4.22.2",
     "express-session": "^1.19.0",
     "ipp": "^2.0.1",
-    "multer": "^1.4.5-lts.2",
+    "multer": "^2.2.0",
     "node-thermal-printer": "^4.4.2",
     "pdf-to-printer": "^5.6.0",
     "pdfjs-dist": "^4.0.269",
