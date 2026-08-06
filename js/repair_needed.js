@@ -929,9 +929,14 @@
        <div id="repairOverlayThread" class="repair-overlay-thread"><div class="repair-muted">Loading emails…</div></div>`
     );
     const threadEl = document.getElementById('repairOverlayThread');
+    const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const timeoutId = setTimeout(() => {
+      try { controller && controller.abort(); } catch (_) { /* ignore */ }
+    }, 25000);
     try {
       const response = await fetch(`/api/ms-email/thread?ticketId=${encodeURIComponent(ticket.id)}`, {
-        credentials: 'same-origin'
+        credentials: 'same-origin',
+        signal: controller ? controller.signal : undefined
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) {
@@ -946,8 +951,14 @@
       }
     } catch (error) {
       if (threadEl) {
-        threadEl.innerHTML = `<div class="repair-muted">${escapeHtml(error.message || 'Could not load email history')}</div>`;
+        const aborted = error && (error.name === 'AbortError' || /aborted/i.test(String(error.message || '')));
+        const msg = aborted
+          ? 'Timed out loading email history. Try again — if it keeps hanging, the inbox may be busy.'
+          : (error.message || 'Could not load email history');
+        threadEl.innerHTML = `<div class="repair-muted">${escapeHtml(msg)}</div>`;
       }
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -1090,7 +1101,8 @@
       const refreshData = refreshRes ? await refreshRes.json().catch(() => ({})) : {};
 
       const response = await fetch(`/api/ms-email/thread?ticketId=${encodeURIComponent(ticket.id)}`, {
-        credentials: 'same-origin'
+        credentials: 'same-origin',
+        signal: AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.ok) {

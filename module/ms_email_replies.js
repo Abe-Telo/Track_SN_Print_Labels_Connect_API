@@ -642,10 +642,19 @@ function recordCaseIds(record) {
  * True when this email belongs on the ticket's thread.
  * Priority: SN → case → strict order (no SN/case conflict).
  * Bare historical uid links are NOT enough — that kept polluted matches forever.
+ *
+ * opts.requireCaseAlignment — when ticket + email both have case IDs, SN/order
+ * hits only count if the cases overlap (stops old warranty cycles bloating the thread).
+ * opts.skipOrderWithoutCase — ignore pure order matches (stale MS order numbers).
+ * opts.caseOnly — match only by case id (used for the email-history overlay).
+ * opts.activeCaseOnly — alias used by callers; treated as requireCaseAlignment.
  */
 function recordMatchesTicket(record, ident, opts) {
   if (!record) return false;
   const options = opts || {};
+  const requireCaseAlignment = !!(options.requireCaseAlignment || options.activeCaseOnly || options.preferDevice);
+  const skipOrderWithoutCase = !!options.skipOrderWithoutCase;
+  const caseOnly = !!options.caseOnly;
   const f = record.fields || {};
   const labels = record.labels || f.labels || [];
 
@@ -666,10 +675,20 @@ function recordMatchesTicket(record, ident, opts) {
   }
 
   const recCases = recordCaseIds(record);
+  const casesOverlap = ident.cases.size > 0 && recCases.size > 0
+    && [...ident.cases].some((c) => recCases.has(c));
 
-  // 1) Serial match
+  // Email history for an open MS case: only that case's mail (multi-device safe).
+  if (caseOnly) {
+    if (!ident.cases.size) return false;
+    return casesOverlap;
+  }
+
+  // 1) Serial match (optionally refuse when email is clearly a different MS case)
   for (const s of ident.serials) {
-    if (recSerials.has(s)) return true;
+    if (!recSerials.has(s)) continue;
+    if (requireCaseAlignment && ident.cases.size && recCases.size && !casesOverlap) continue;
+    return true;
   }
 
   // 2) Case match (multi-device case emails)
@@ -680,19 +699,23 @@ function recordMatchesTicket(record, ident, opts) {
   }
 
   // 3) Order match only when not contradicted by SN or case on the email
-  let orderHit = false;
-  for (const o of ident.orders) {
-    if (recOrders.has(o)) {
-      orderHit = true;
-      break;
+  if (!skipOrderWithoutCase) {
+    let orderHit = false;
+    for (const o of ident.orders) {
+      if (recOrders.has(o)) {
+        orderHit = true;
+        break;
+      }
     }
-  }
-  if (orderHit) {
-    const snConflict = recSerials.size > 0
-      && ![...ident.serials].some((s) => recSerials.has(s));
-    const caseConflict = ident.cases.size > 0 && recCases.size > 0
-      && ![...ident.cases].some((c) => recCases.has(c));
-    if (!snConflict && !caseConflict) return true;
+    if (orderHit) {
+      const snConflict = recSerials.size > 0
+        && ![...ident.serials].some((s) => recSerials.has(s));
+      const caseConflict = ident.cases.size > 0 && recCases.size > 0 && !casesOverlap;
+      // Active-case threads should not pull every historical order notice
+      // that has no case id on the email.
+      const staleOrderOnly = requireCaseAlignment && ident.cases.size > 0 && recCases.size === 0;
+      if (!snConflict && !caseConflict && !staleOrderOnly) return true;
+    }
   }
 
   // 4) Historical uid link — only if the record still aligns under the rules above
@@ -723,6 +746,39 @@ function stripHtml(html) {
     .trim();
 }
 
+/** In-memory message views — re-parsing 100+ .eml files per click was hanging the UI. */
+const MESSAGE_VIEW_CACHE = new Map();
+const MESSAGE_VIEW_CACHE_MAX = 200;
+
+function messageViewCacheKey(uid) {
+  const rawPath = path.join(RAW_DIR, `uid-${uid}.eml`);
+  let mtime = 0;
+  try {
+    mtime = fs.statSync(rawPath).mtimeMs || 0;
+  } catch (_) { /* missing raw */ }
+  return `${uid}:${mtime}`;
+}
+
+function getCachedMessageView(uid) {
+  const key = messageViewCacheKey(uid);
+  const hit = MESSAGE_VIEW_CACHE.get(key);
+  if (!hit) return null;
+  // Refresh LRU order
+  MESSAGE_VIEW_CACHE.delete(key);
+  MESSAGE_VIEW_CACHE.set(key, hit);
+  return hit;
+}
+
+function setCachedMessageView(uid, view) {
+  const key = messageViewCacheKey(uid);
+  if (MESSAGE_VIEW_CACHE.has(key)) MESSAGE_VIEW_CACHE.delete(key);
+  MESSAGE_VIEW_CACHE.set(key, view);
+  while (MESSAGE_VIEW_CACHE.size > MESSAGE_VIEW_CACHE_MAX) {
+    const oldest = MESSAGE_VIEW_CACHE.keys().next().value;
+    MESSAGE_VIEW_CACHE.delete(oldest);
+  }
+}
+
 async function parseUid(uid) {
   const rawPath = path.join(RAW_DIR, `uid-${uid}.eml`);
   if (!fs.existsSync(rawPath)) return null;
@@ -742,6 +798,9 @@ function rewriteCidHtml(html, attachments) {
 }
 
 async function buildMessageView(uid) {
+  const cached = getCachedMessageView(uid);
+  if (cached) return cached;
+
   const record = loadJson(path.join(INBOX_DIR, `uid-${uid}.json`), null);
   const parsedBundle = await parseUid(uid);
   if (!parsedBundle) return null;
@@ -772,7 +831,7 @@ async function buildMessageView(uid) {
     return '';
   };
 
-  return {
+  const view = {
     uid: Number(uid),
     subject: String(parsed.subject || (record && record.subject) || ''),
     from: addrText(parsed.from) || (record && record.from) || '',
@@ -788,6 +847,8 @@ async function buildMessageView(uid) {
     fields: (record && record.fields) || null,
     hasHtml: !!htmlRaw
   };
+  setCachedMessageView(uid, view);
+  return view;
 }
 
 function extractEmailAddresses(text) {
@@ -1038,7 +1099,7 @@ function buildDraftEnvelope(draft, messageView, extraViews = []) {
   };
 }
 
-async function enrichDraftWithEnvelope(draft) {
+async function enrichDraftWithEnvelope(draft, opts = {}) {
   if (!draft) return draft;
   let view = null;
   const extraViews = [];
@@ -1047,16 +1108,21 @@ async function enrichDraftWithEnvelope(draft) {
       view = await buildMessageView(draft.inReplyToUid);
     } catch (_) { /* ignore */ }
   }
-  // Pull other thread messages for this ticket/case so Cc never drops people
+  // Pull other thread messages for this ticket/case so Cc never drops people.
+  // Prefer a prebuilt thread from the caller — rebuilding here doubled parse time and hung the UI.
   try {
-    const ticket = draft.ticketId ? findTicket(draft.ticketId) : null;
-    if (ticket) {
-      const thread = await buildThreadForTicket(ticket);
-      for (const msg of (thread && thread.messages) || []) {
-        if (!msg) continue;
-        if (view && Number(msg.uid) === Number(view.uid)) continue;
-        extraViews.push(msg);
+    let messages = Array.isArray(opts.threadMessages) ? opts.threadMessages : null;
+    if (!messages) {
+      const ticket = draft.ticketId ? findTicket(draft.ticketId) : null;
+      if (ticket) {
+        const thread = await buildThreadForTicket(ticket, { forDisplay: true });
+        messages = (thread && thread.messages) || [];
       }
+    }
+    for (const msg of messages || []) {
+      if (!msg) continue;
+      if (view && Number(msg.uid) === Number(view.uid)) continue;
+      extraViews.push(msg);
     }
   } catch (_) { /* ignore */ }
   draft.envelope = buildDraftEnvelope(draft, view, extraViews);
@@ -1065,9 +1131,35 @@ async function enrichDraftWithEnvelope(draft) {
   return draft;
 }
 
-async function buildThreadForTicket(ticket) {
-  const ident = ticketIdentity(ticket);
-  const records = listUidRecords().filter((r) => recordMatchesTicket(r, ident));
+/**
+ * Build the MS ↔ warehouse email thread for a repair ticket.
+ * opts.forDisplay (default true) — scope to the active MS case so old SN cycles
+ * do not force-parse hundreds of .eml files (that hung "Loading emails…").
+ * opts.limit — max messages after sort (newest kept). Default 40 for display.
+ */
+async function buildThreadForTicket(ticket, opts = {}) {
+  if (!ticket) return { ticketId: null, serialNumber: null, count: 0, messages: [] };
+  const options = opts || {};
+  const forDisplay = options.forDisplay !== false;
+  const baseIdent = ticketIdentity(ticket);
+  // Display / notification path: only the active case, not every msRelatedCases entry.
+  const ident = (forDisplay && ticket.msCaseId)
+    ? { ...baseIdent, cases: new Set([String(ticket.msCaseId)]) }
+    : baseIdent;
+  const matchOpts = forDisplay && ticket.msCaseId
+    ? { caseOnly: true }
+    : (forDisplay ? { requireCaseAlignment: true, skipOrderWithoutCase: true } : {});
+
+  let records = listUidRecords().filter((r) => recordMatchesTicket(r, ident, matchOpts));
+
+  // Newest first before capping so we keep the current conversation.
+  records.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  const limit = Number(options.limit);
+  const max = Number.isFinite(limit) && limit > 0
+    ? limit
+    : (forDisplay ? 40 : 80);
+  if (records.length > max) records = records.slice(0, max);
+
   const messages = [];
   for (const rec of records) {
     try {
@@ -1088,7 +1180,14 @@ async function buildThreadForTicket(ticket) {
     }
   }
   messages.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-  return { ticketId: ticket.id, serialNumber: ticket.serialNumber, count: messages.length, messages };
+  return {
+    ticketId: ticket.id,
+    serialNumber: ticket.serialNumber,
+    caseId: ticket.msCaseId || null,
+    count: messages.length,
+    messages,
+    truncated: false
+  };
 }
 
 function draftTemplates(ticket, record, messageView) {
@@ -1548,7 +1647,7 @@ function supersedeStaleDrafts(all, ticketId, keepUid) {
 }
 
 async function refreshDraftsForTicket(ticket) {
-  const thread = await buildThreadForTicket(ticket);
+  const thread = await buildThreadForTicket(ticket, { forDisplay: true });
   const newest = thread.messages && thread.messages.length
     ? thread.messages[thread.messages.length - 1]
     : null;
@@ -1654,9 +1753,16 @@ async function refreshDraftsForTicket(ticket) {
 
   const drafts = loadDrafts().filter((d) => String(d.ticketId) === String(ticket.id));
   const enriched = [];
+  let threadMessages = null;
+  try {
+    const thread = await buildThreadForTicket(ticket, { forDisplay: true });
+    threadMessages = (thread && thread.messages) || [];
+  } catch (_) {
+    threadMessages = [];
+  }
   for (const d of drafts) {
     if (d && (d.status === 'pending' || d.status === 'approved_queued')) {
-      enriched.push(await enrichDraftWithEnvelope(d));
+      enriched.push(await enrichDraftWithEnvelope(d, { threadMessages }));
     } else {
       enriched.push(d);
     }
@@ -1740,6 +1846,102 @@ function draftsForTicket(ticketId, opts = {}) {
     .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 }
 
+/** Parse to/cc fields into unique lowercase email addresses. */
+function parseAddressList(value) {
+  if (!value) return [];
+  const raw = Array.isArray(value) ? value.join(', ') : String(value);
+  const out = [];
+  const seen = new Set();
+  for (const part of raw.split(/[,;]+/)) {
+    const m = String(part).match(/([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/i);
+    if (!m) continue;
+    const addr = m[1].toLowerCase();
+    if (seen.has(addr)) continue;
+    seen.add(addr);
+    out.push(addr);
+  }
+  return out;
+}
+
+/** Resolve preferred MX host for a domain (lowest preference). */
+async function resolveBestMxHost(domain) {
+  const dns = require('dns').promises;
+  const d = String(domain || '').toLowerCase().replace(/\.$/, '');
+  if (!d) throw new Error('empty mail domain');
+  let records;
+  try {
+    records = await dns.resolveMx(d);
+  } catch (e) {
+    throw new Error(`MX lookup failed for ${d}: ${e.message}`);
+  }
+  if (!Array.isArray(records) || !records.length) {
+    throw new Error(`No MX records for ${d}`);
+  }
+  records.sort((a, b) => (a.priority || 0) - (b.priority || 0));
+  return String(records[0].exchange || '').replace(/\.$/, '');
+}
+
+/**
+ * Deliver from this Linode host straight to each recipient domain's MX :25.
+ * GoDaddy relay cannot reach some destinations (e.g. Mailcow); direct MX can.
+ * SPF for orderassistnow.com includes `a` (apex → this server).
+ */
+async function sendMailViaDirectMx(nodemailer, mail, opts) {
+  const ehloName = String((opts && opts.ehloName) || 'orderassistnow.com').trim();
+  const envelopeFrom = String((opts && opts.from) || mail.from || '').trim();
+  const toList = parseAddressList(mail.to);
+  const ccList = parseAddressList(mail.cc);
+  const all = [...toList, ...ccList];
+  if (!all.length) throw new Error('No recipients for direct MX send');
+
+  const byDomain = new Map();
+  for (const addr of all) {
+    const domain = addr.split('@')[1];
+    if (!byDomain.has(domain)) byDomain.set(domain, []);
+    byDomain.get(domain).push(addr);
+  }
+
+  const legs = [];
+  let messageId = null;
+  for (const [domain, rcpts] of byDomain) {
+    const mxHost = await resolveBestMxHost(domain);
+    const transporter = nodemailer.createTransport({
+      host: mxHost,
+      port: 25,
+      secure: false,
+      requireTLS: false,
+      tls: { rejectUnauthorized: false },
+      name: ehloName,
+      connectionTimeout: 45000,
+      greetingTimeout: 45000,
+      socketTimeout: 60000
+    });
+    try {
+      const info = await transporter.sendMail({
+        ...mail,
+        envelope: { from: envelopeFrom, to: rcpts }
+      });
+      if (!messageId && info && info.messageId) messageId = info.messageId;
+      legs.push({
+        domain,
+        mxHost,
+        accepted: info.accepted || rcpts,
+        rejected: info.rejected || [],
+        messageId: info.messageId || null
+      });
+    } finally {
+      try { transporter.close(); } catch (_) { /* ignore */ }
+    }
+  }
+  return { messageId, legs };
+}
+
+function useDirectMxSmtp(cfg) {
+  const mode = String((cfg.smtp && cfg.smtp.mode) || '').trim().toLowerCase();
+  if (mode === 'direct' || mode === 'directmx' || mode === 'direct_mx') return true;
+  return cfg.smtp && cfg.smtp.directMx === true;
+}
+
 async function sendDraftSmtp(draft, ticket) {
   const cfg = loadConfig();
   if (!cfg || !cfg.smtp || cfg.smtp.enabled !== true) {
@@ -1753,12 +1955,7 @@ async function sendDraftSmtp(draft, ticket) {
   }
 
   const password = String(process.env.MS_RETURNS_IMAP_PASSWORD || cfg.password || '').trim();
-  const transporter = nodemailer.createTransport({
-    host: cfg.smtp.host || 'mail.orderassistnow.com',
-    port: Number(cfg.smtp.port || 465),
-    secure: cfg.smtp.tls !== false,
-    auth: { user: cfg.user || 'ms-returns@orderassistnow.com', pass: password }
-  });
+  const directMx = useDirectMxSmtp(cfg);
 
   let view = null;
   try {
@@ -1800,7 +1997,32 @@ async function sendDraftSmtp(draft, ticket) {
     }));
   }
 
-  const info = await transporter.sendMail(mail);
+  let info;
+  let transportNote = 'godaddy-smtp';
+  if (directMx) {
+    const direct = await sendMailViaDirectMx(nodemailer, mail, {
+      from: mail.from,
+      ehloName: (cfg.smtp && cfg.smtp.ehloName) || 'orderassistnow.com'
+    });
+    info = { messageId: direct.messageId, accepted: direct.legs };
+    transportNote = `direct-mx:${direct.legs.map((l) => `${l.domain}->${l.mxHost}`).join(';')}`;
+    console.log('[ms_email_replies] direct MX send', transportNote, direct.legs);
+  } else {
+    const smtpPort = Number(cfg.smtp.port || 465);
+    // 465 = implicit TLS; 587 = STARTTLS (Mailcow). cfg.smtp.secure overrides when set.
+    const implicitTls = (typeof cfg.smtp.secure === 'boolean')
+      ? cfg.smtp.secure
+      : (smtpPort === 465);
+    const transporter = nodemailer.createTransport({
+      host: cfg.smtp.host || 'mail.orderassistnow.com',
+      port: smtpPort,
+      secure: implicitTls,
+      requireTLS: !implicitTls && cfg.smtp.tls !== false,
+      auth: { user: cfg.user || 'ms-returns@orderassistnow.com', pass: password }
+    });
+    info = await transporter.sendMail(mail);
+    transportNote = `smtp:${cfg.smtp.host || 'mail'}:${smtpPort}`;
+  }
 
   let sentFolder = null;
   let sentAppendError = null;
@@ -1823,6 +2045,7 @@ async function sendDraftSmtp(draft, ticket) {
     to: mail.to,
     cc: mail.cc || '',
     from: mail.from,
+    transport: transportNote,
     sentFolder,
     sentAppendError
   };
@@ -2819,12 +3042,12 @@ function setupMsEmailReplyRoutes(app) {
     const ticket = findTicket(ticketId);
     if (!ticket) return res.status(404).json({ error: 'Ticket not found' });
     try {
-      const thread = await buildThreadForTicket(ticket);
+      const thread = await buildThreadForTicket(ticket, { forDisplay: true });
       const drafts = draftsForTicket(ticketId, { all: true });
       const enriched = [];
       for (const d of drafts) {
         if (d && (d.status === 'pending' || d.status === 'approved_queued')) {
-          enriched.push(await enrichDraftWithEnvelope(d));
+          enriched.push(await enrichDraftWithEnvelope(d, { threadMessages: thread.messages }));
         } else {
           enriched.push(d);
         }

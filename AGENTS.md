@@ -196,6 +196,13 @@ curl -s http://localhost:3000/list-scripts | head -c 500
 
 ## Printing, MS labels & History tab
 
+### Email history overlay (Repair Needed notifications)
+Clicking a **New MS email** notification opens `Email history · <SN>` and calls `GET /api/ms-email/thread`.
+That endpoint must stay fast: it scopes to the ticket’s **active `msCaseId`** (not every historical SN/order match), caps messages, caches parsed `.eml` views, and reuses the thread when enriching drafts.
+Do **not** reintroduce unbounded SN matching here — it re-parsed 100+ EMLs and hung on “Loading emails…”.
+See `module/ms_email_replies.js` (`buildThreadForTicket`, `recordMatchesTicket` `caseOnly`) and `js/repair_needed.js` (`openEmailHistoryOverlay`).
+
+
 See **[docs/PRINT_AND_LABELS.md](./docs/PRINT_AND_LABELS.md)**.
 
 Do not remove:
